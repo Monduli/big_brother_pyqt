@@ -1,7 +1,7 @@
 # Last updated 2/3/2024
 
 import sys
-from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QHBoxLayout, QVBoxLayout, QPushButton, QListWidget
+from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QHBoxLayout, QVBoxLayout, QPushButton, QListWidget, QTextEdit, QSizePolicy
 from PyQt5.QtCore import Qt
 import random 
 import names
@@ -24,12 +24,23 @@ class HouseGuest:
         self.nominee = False
         self.veto = False
 
+        self.friendliness = random.randint(1, 5)
+        self.loyalty = random.randint(1, 5) 
+        self.manipulativeness = random.randint(1, 5)
+        self.emotionality = random.randint(1, 5)
+        self.competitiveness = random.randint(1, 5)
+
     def __repr__(self):
         return self.name
     
     def summary(self):
         """Return a string with the houseguest's info""" 
         return f"{self.name} - {self.age}, {self.profession}"
+    
+class Event:
+    def __init__(self, name, effect):
+        self.name = name 
+        self.effect = effect
 
 class BigBrother(QWidget):
     
@@ -41,8 +52,8 @@ class BigBrother(QWidget):
         self.prev_HOH = None
         self.end_state = 0
         self.create_players()
-        self.introduce_players()
         self.initUI()
+        self.introduce_players()
         
     def initUI(self):
         # Create the QListWidget and add all houseguests
@@ -53,6 +64,7 @@ class BigBrother(QWidget):
             self.list_items.append(hg.name)
         
         # Set layout
+        overall = QVBoxLayout()
         layout = QHBoxLayout()
         
         # Create widget for left side 
@@ -96,8 +108,6 @@ class BigBrother(QWidget):
 
         # Then add the widget to the main layout
         layout.addWidget(self.left_widget)
-
-        layout.addLayout(right_layout)
         
         # Add Continue button 
         self.next_week_btn = QPushButton("Continue")
@@ -107,26 +117,47 @@ class BigBrother(QWidget):
         self.reset_btn = QPushButton("Reset")
         self.reset_btn.clicked.connect(self.reset)
 
-        layout.addWidget(self.reset_btn)
-        layout.addWidget(self.next_week_btn , alignment=Qt.AlignBottom)
-
-        self.setLayout(layout)
-        self.show()
+        button_layout = QVBoxLayout()
+        button_layout.addWidget(self.next_week_btn)
+        button_layout.addWidget(self.reset_btn) 
         
+        overall.addLayout(layout)
+        overall.addLayout(button_layout)
+
+        # Add text display box
+        self.text_box = QTextEdit()
+        self.text_box.setReadOnly(True)
+
+        # Layout for list and text on right
+        right_layout = QHBoxLayout()
+
+        right_layout.addWidget(self.houseguest_list)
+
+        right_layout.addWidget(self.text_box)
+
+        layout.addLayout(right_layout)
+
+        self.setLayout(overall)
+        self.show()
+
+    # Print text to box instead of console
+    def print_text(self, text):
+        self.text_box.append(text)
+
     def create_players(self):
         for i in range(self.num_players):
             name = names.get_first_name()
             self.houseguests.append(HouseGuest(name))
         
     def introduce_players(self):
-        print(f"Meet the {len(self.houseguests)} houseguests:")
+        self.print_text(f"Meet the {len(self.houseguests)} houseguests:")
         for player in self.houseguests:
-            print(player.summary()) 
+            self.print_text(player.summary()) 
             
     def play_week(self):
         """Simulate a week of Big Brother"""
         self.week = self.num_players - len(self.houseguests)+1
-        print(f"Week {self.week}:")
+        self.print_text(f"Week {self.week}:")
 
         if self.end_state == 1:
             self.close()
@@ -135,11 +166,11 @@ class BigBrother(QWidget):
         if len(self.houseguests) == 2:
 
             # Finale
-            print(f"Final 2: {self.houseguests[0].name} and {self.houseguests[1].name}")
+            self.print_text(f"Final 2: {self.houseguests[0].name} and {self.houseguests[1].name}")
 
             # Have them plead their case
-            print(f"{self.houseguests[0].name} pleads their case...")  
-            print(f"{self.houseguests[1].name} pleads their case...")
+            self.print_text(f"{self.houseguests[0].name} pleads their case...")  
+            self.print_text(f"{self.houseguests[1].name} pleads their case...")
 
             # Evicted houseguests vote
             votes = {}  
@@ -148,7 +179,7 @@ class BigBrother(QWidget):
 
             votes1, votes2 = 0, 0
             for value in votes.keys():
-                print(f"{value} votes for {votes[value]} to win Big Brother!")
+                self.print_text(f"{value} votes for {votes[value]} to win Big Brother!")
                 if votes[value] == self.houseguests[0].name:
                     votes1 += 1
                 elif votes[value] == self.houseguests[1].name:
@@ -161,13 +192,13 @@ class BigBrother(QWidget):
             else:
                 winner = random.choice(self.houseguests)
 
-            print(f"{winner} wins Big Brother!")
+            self.print_text(f"{winner} wins Big Brother!")
             # Clear all labels except first
             for i in range(1, self.left_layout.count()):  
                 self.left_layout.itemAt(i).widget().setText("")
             # Remove evicted houseguest from the list
             for i in range(self.houseguest_list.count()):
-                print(self.houseguest_list.item(i).text())
+                self.print_text(self.houseguest_list.item(i).text())
                 if self.houseguest_list.item(i).text() != winner.name:
                     row = i
             self.houseguest_list.takeItem(row)
@@ -201,13 +232,13 @@ class BigBrother(QWidget):
                 self.prev_HOH = self.HOH
 
             self.HOH.HOH = True
-            print(f"{self.HOH.name} is the new Head of Household")
+            self.print_text(f"{self.HOH.name} is the new Head of Household")
             
             #Nominate two players
             nominees = random.sample(list(set(self.houseguests) - set([self.HOH])), 2)  
             for nominee in nominees:
                 nominee.nominee = True
-            print(f"{self.HOH.name} has nominated {nominees[0].name} and {nominees[1].name} for eviction.")   
+            self.print_text(f"{self.HOH.name} has nominated {nominees[0].name} and {nominees[1].name} for eviction.")   
             
             #Play veto competition
             NUM_VETO_PLAYERS = 6
@@ -219,7 +250,7 @@ class BigBrother(QWidget):
                 veto_players = random.sample(potential_players, k=min(len(potential_players), NUM_VETO_PLAYERS-3))
                 veto_players.extend(nominees + [self.HOH])
                 self.veto_winner = random.choice(veto_players)
-                print(f"{self.veto_winner} has won the Power of Veto!")
+                self.print_text(f"{self.veto_winner} has won the Power of Veto!")
                 
             else:
                 self.veto_winner = None
@@ -229,7 +260,7 @@ class BigBrother(QWidget):
                 self.veto_holder_label.setText(f"Veto Holder: {self.veto_winner.name}")
                 # If veto winner is also a nominee, force them to use it on self
                 if self.veto_winner in nominees:
-                    print(f"{self.veto_winner.name} has automatically used the Veto on themselves.")
+                    self.print_text(f"{self.veto_winner.name} has automatically used the Veto on themselves.")
                     nominee_saved = self.veto_winner
                     nominees.remove(nominee_saved)
                 
@@ -240,15 +271,15 @@ class BigBrother(QWidget):
                         nominee_saved = random.choice(nominees)
                     
                         if nominee_saved == self.veto_winner:
-                            print(f"{self.veto_winner} has chosen to use the Power of Veto on themselves.")
+                            self.print_text(f"{self.veto_winner} has chosen to use the Power of Veto on themselves.")
                         else:
-                            print(f"{self.veto_winner} has chosen to use the Power of Veto on {nominee_saved.name}.")
+                            self.print_text(f"{self.veto_winner} has chosen to use the Power of Veto on {nominee_saved.name}.")
                             
                         nominees.remove(nominee_saved)
                         replacement_nom = random.choice(potential_players)
                         nominees.append(replacement_nom)
                         
-                        print(f"{self.HOH.name} has nominated {replacement_nom.name} as the replacement nominee.")
+                        self.print_text(f"{self.HOH.name} has nominated {replacement_nom.name} as the replacement nominee.")
                         if len(nominees) == 2:
                             self.replacement_nominees_label.setText(f"Replacement Nominees: {', '.join([nom.name for nom in nominees])}")
                         elif len(nominees) == 1:
@@ -257,7 +288,7 @@ class BigBrother(QWidget):
                             self.replacement_nominees_label.setText("The veto was not used.")
 
                     else:
-                        print(f"{self.veto_winner} has chosen not to use the Power of Veto.")
+                        self.print_text(f"{self.veto_winner} has chosen not to use the Power of Veto.")
                         self.replacement_nominees_label.setText(f"The veto was not used.")
             
             else:
@@ -270,7 +301,7 @@ class BigBrother(QWidget):
                 votes[houseguest.name] = random.choice(nominees).name
             evicted_name = max(votes, key=list(votes.values()).count)
             evicted = next(hg for hg in self.houseguests if hg.name == evicted_name)
-            print(f"{evicted.name} has been evicted from the Big Brother house.")
+            self.print_text(f"{evicted.name} has been evicted from the Big Brother house.")
             self.evicted_houseguests.append(evicted)
             self.houseguests.remove(evicted)
             # Update evicted houseguest
@@ -281,11 +312,12 @@ class BigBrother(QWidget):
             self.nominees_label.setText(f"Nominees: {', '.join([nom.name for nom in nominees])}")
 
             # Remove evicted houseguest from the list
+            row = None 
             for i in range(self.houseguest_list.count()):
-                print(self.houseguest_list.item(i).text())
                 if self.houseguest_list.item(i).text() == evicted.name:
                     row = i
-            self.houseguest_list.takeItem(row)
+            if row is not None:     
+                self.houseguest_list.takeItem(row) 
 
     # Reset game
     def reset(self):
@@ -313,3 +345,5 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
     ex = BigBrother()
     sys.exit(app.exec_())
+
+# I had to move the initUI() function above create_players and introduce_players to get it to work. Now, when I open the app, there's a huge gap between the players box and the text box. Additionally, when I click "continue", the app crashes, saying "self.houseguest_list.takeItem(row)" cannot access local variable "row" where it is not associated with a value
