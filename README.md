@@ -1,6 +1,8 @@
 # big_brother_pyqt
 A Big Brother (US) simulator made in Python (uses PyQT for the interface). Early in development!
 
+Big TODO: Fix the README. lol
+
 Note that this was originally a terminal app and proper text is still being added to the PyQT interface.
 If you feel something is missing from the interface, look at the terminal. If it's still missing, look at my TODO at the bottom of this README. If it's STILL missing, let me know.
 
