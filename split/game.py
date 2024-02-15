@@ -1,105 +1,29 @@
-# Last updated 2/3/2024
-
 import random
-import re
 import sys
 
 import names
-from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QColor, QPalette, QTextCursor
-from PyQt5.QtWidgets import (
-    QApplication,
-    QDialog,
-    QDialogButtonBox,
-    QGridLayout,
-    QHBoxLayout,
-    QLabel,
-    QLineEdit,
-    QListWidget,
-    QPushButton,
-    QSizePolicy,
-    QTextEdit,
-    QVBoxLayout,
-    QWidget,
-)
-
-NUM_PLAYERS = 12
-PROFESSIONS = [
-    "Accountant",
-    "Actor",
-    "Athlete",
-    "Author",
-    "Chef",
-    "Engineer",
-    "Entrepreneur",
-    "Nurse",
-    "Photographer",
-    "Scientist",
-    "Teacher",
-]
-MAX_EVENTS = 1
-
-
-class HouseGuest:
-
-    def __init__(self, name):
-        # Generate random age and profession
-        self.age = random.randint(21, 40)
-        self.professions = PROFESSIONS
-        self.profession = random.choice(self.professions)
-
-        self.name = name
-        self.HOH = False
-        self.nominee = False
-        self.veto = False
-        self.target = None
-        self.impressions = {}
-        self.vetoed = False
-
-        self.friendliness = random.randint(1, 5)
-        self.loyalty = random.randint(1, 5)
-        self.manipulativeness = random.randint(1, 5)
-        self.emotionality = random.randint(1, 5)
-        self.competitiveness = random.randint(1, 5)
-
-    def __repr__(self):
-        return self.name
-
-    def summary(self):
-        """Return a string with the houseguest's info"""
-        return f"{self.name} - {self.age}, {self.profession}"
-
-
-class Alliance:
-    def __init__(self, members):
-        self.members = members
-
-        # Generate a random alliance name based on member names
-        name_parts = [m.name for m in members]
-        self.name = "_".join(name_parts) + "_" + str(random.randint(0, 100))
-
-    def get_members(self):
-        return self.members
-
-    def get_name(self):
-        return self.name
+from constants import *
+from houseguest import HouseGuest
+from impression_matrix import ImpressionMatrix
+from name_edit import EditNameDialog
+from PyQt5.QtCore import QSettings, Qt, QTimer
+from PyQt5.QtGui import QColor, QPalette
+from PyQt5.QtWidgets import (QAction, QApplication, QDialog, QDialogButtonBox,
+                             QGridLayout, QHBoxLayout, QLabel, QLineEdit,
+                             QListWidget, QMenuBar, QPushButton, QSizePolicy,
+                             QSpacerItem, QSpinBox, QTextEdit, QVBoxLayout,
+                             QWidget)
 
 
 class BigBrother(QWidget):
 
     def __init__(self):
         super().__init__()
-        self.pending_updates = []  # Initialize an empty list to store pending updates
-        self.current_update = None  # Keep track of the currently running update
         self.num_players = NUM_PLAYERS
         self.houseguests = []
         self.evicted_houseguests = []
         self.prev_HOH = None
         self.end_state = 0
-        self.HOH = None
-        self.nominees = None
-        self.veto_winner = None
-        self.evicted = None
         self.events = []  # Initialize a list to store events
         self.alliances = {}  # Initialize a dictionary to store alliances
         self.create_players()
@@ -134,6 +58,30 @@ class BigBrother(QWidget):
 
         """ self.next_week_btn = QPushButton("Continue")
         self.next_week_btn.clicked.connect(self.play_week) """
+        
+        # Create menu bar 
+        menu_bar = QMenuBar()
+        menu_bar.setMinimumSize(600, 0)  # Set minimum width to 600px
+        menu_bar.setContentsMargins(20, 0, 20, 0)  # Left/right margins of 20px
+        layout.setMenuBar(menu_bar)  
+
+        layout.setContentsMargins(0, 30, 0, 0) 
+
+        # Create File menu
+        file_menu = menu_bar.addMenu("File")
+
+        # Add Reset, Preferences, and Exit actions to File menu
+        reset_action = QAction("Reset", self)
+        reset_action.triggered.connect(self.reset)
+        file_menu.addAction(reset_action)
+
+        preferences_action = QAction("Preferences...", self)
+        preferences_action.triggered.connect(self.show_preferences)  # Implement this method 
+        file_menu.addAction(preferences_action)
+
+        exit_action = QAction("Exit", self)
+        exit_action.triggered.connect(self.close)
+        file_menu.addAction(exit_action)
 
         # Add "Impressions" button
         self.impressions_btn = QPushButton("Impressions")
@@ -252,84 +200,12 @@ class BigBrother(QWidget):
 
     # Print text to box instead of console
     def print_text(self, text, nl=True):
-        if nl:
-            text += "\n"
-
-        def update_text():
-            cursor = self.text_box.textCursor()
-            cursor.movePosition(QTextCursor.End)
-            self.text_box.setTextCursor(cursor)
-            self.text_box.insertPlainText(text)
-
-            # Apply formatting
-            self.format_text()
-            # Add more color_words calls for other keywords and names
-
-            self.current_update = None  # Mark the current update as complete
-            if self.pending_updates:  # If there are more pending updates
-                update = self.pending_updates.pop(0)  # Get the next update
-                QTimer.singleShot(300, update)  # Schedule it to run after a delay
-
-        if not self.current_update:  # If there's no update currently running
-            self.current_update = update_text  # Set the current update
-            QTimer.singleShot(300, update_text)  # Schedule it to run after a delay
-            if self.pending_updates:  # If there are more pending updates
-                self.pending_updates.pop(0)  # Remove the current update from the queue
+        if nl is True:
+            self.text_box.append(text + "\n")
         else:
-            self.pending_updates.append(update_text)  # Add this update to the queue
-
-    def color_words(self, textedit, phrase, color):
-        cursor = textedit.textCursor()
-        text = textedit.toPlainText()
-        phrase_len = len(phrase)
-        start_index = 0
-        while True:
-            match = re.search(
-                r"\b{}\b".format(phrase), text[start_index:], re.IGNORECASE
-            )
-            if not match:
-                break
-            start_index += match.start()
-            cursor.setPosition(start_index)
-            cursor.setPosition(start_index + phrase_len, QTextCursor.KeepAnchor)
-            textedit.setTextCursor(cursor)
-            textedit.setTextColor(color)
-            start_index += phrase_len
-
-    def format_text(self):
-        # Apply custom formatting
-        self.color_words(self.text_box, "HOH", Qt.yellow)
-        self.color_words(self.text_box, "Head of Household", Qt.yellow)
-        if self.HOH is not None:
-            self.color_words(self.text_box, self.HOH.name, Qt.yellow)
-        # Format entire sentence with houseguest name when swayed
-        for hg in self.houseguests:
-            phrase = r"\b{}\b\s+was swayed!".format(hg.name)
-            self.color_words_phrase(self.text_box, phrase, Qt.magenta)
-
-        # Format entire sentence with houseguest name when not buying it
-        for hg in self.houseguests:
-            phrase = r"But\s+\b{}\b\s+didn\'t buy it!".format(hg.name)
-            self.color_words_phrase(self.text_box, phrase, Qt.magenta)
-
-        if self.veto_winner:
-            self.color_words(self.text_box, self.veto_winner.name, Qt.cyan)
-
-        if self.nominees:
-            for nominee in self.nominees:
-                self.color_words(self.text_box, nominee.name, Qt.red)
-
-    def color_words_phrase(self, textedit, phrase, color):
-        cursor = textedit.textCursor()
-        text = textedit.toPlainText()
-        match = re.search(phrase, text, re.IGNORECASE)
-        if match:
-            start_index = match.start()
-            end_index = match.end()
-            cursor.setPosition(start_index)
-            cursor.setPosition(end_index, QTextCursor.KeepAnchor)
-            textedit.setTextCursor(cursor)
-            textedit.setTextColor(color)
+            self.text_box.append(text)
+        # Pause for 300 milliseconds
+        QTimer.singleShot(300, lambda: None)
 
     def create_players(self):
         for i in range(self.num_players):
@@ -372,13 +248,13 @@ class BigBrother(QWidget):
             # Regular game play
             self.select_HOH()
             self.event_spawner()
-            self.select_noms()
+            nominees = self.select_noms()
             self.event_spawner()
-            pp = self.play_veto()
+            pp = self.play_veto(nominees)
             self.event_spawner()
-            self.veto_ceremony(pp)
+            self.veto_ceremony(nominees, pp)
             self.event_spawner()
-            self.eviction()
+            self.eviction(nominees)
             self.event_spawner()
 
         else:
@@ -463,7 +339,7 @@ class BigBrother(QWidget):
 
     def select_noms(self):
         # Nominate two players
-        self.nominees = []
+        nominees = []
 
         worst_impressions = [
             (name, impression)
@@ -475,49 +351,49 @@ class BigBrother(QWidget):
 
         for name, impression in worst_impressions:
             nominee = next(hg for hg in self.houseguests if hg.name == name)
-            self.nominees.append(nominee)
+            nominees.append(nominee)
 
-        if len(self.nominees) < 2:
+        if len(nominees) < 2:
 
             potential_nominees = list(
-                set(self.houseguests) - set([self.HOH]) - set(self.nominees)
+                set(self.houseguests) - set([self.HOH]) - set(nominees)
             )
             if potential_nominees:
                 if self.HOH.target and self.HOH.target not in self.houseguests:
-                    self.nominees.append(random.choice(potential_nominees))
+                    nominees.append(random.choice(potential_nominees))
                 else:
-                    self.nominees.append(random.choice(potential_nominees))
+                    nominees.append(random.choice(potential_nominees))
 
-                potential_nominees.remove(self.nominees[-1])
+                potential_nominees.remove(nominees[-1])
                 if potential_nominees:
-                    self.nominees.append(random.choice(potential_nominees))
+                    nominees.append(random.choice(potential_nominees))
 
-        for nominee in self.nominees:
+        for nominee in nominees:
             nominee.nominee = True
 
         self.print_text(
-            f"{self.HOH.name} has nominated {self.nominees[0].name} and {self.nominees[1].name} for eviction."
+            f"{self.HOH.name} has nominated {nominees[0].name} and {nominees[1].name} for eviction."
         )
         self.nominees_label.setText(
-            f"NOMS: {', '.join([nom.name for nom in self.nominees])}"
+            f"NOMS: {', '.join([nom.name for nom in nominees])}"
         )
 
-    def play_veto(self):
+        return nominees
+
+    def play_veto(self, nominees):
         # Play veto competition
         self.comp("Veto")
         NUM_VETO_PLAYERS = 6
 
         # updated veto competition section
-        potential_players = list(
-            set(self.houseguests) - set(self.nominees + [self.HOH])
-        )
+        potential_players = list(set(self.houseguests) - set(nominees + [self.HOH]))
 
         if len(self.houseguests) > 3:
             veto_players = random.sample(
                 potential_players,
                 k=min(len(potential_players), NUM_VETO_PLAYERS - 3),
             )
-            veto_players.extend(self.nominees + [self.HOH])
+            veto_players.extend(nominees + [self.HOH])
             self.veto_winner = random.choice(veto_players)
             self.print_text(f"{self.veto_winner} has won the Power of Veto!")
 
@@ -526,23 +402,23 @@ class BigBrother(QWidget):
 
         return potential_players
 
-    def veto_ceremony(self, potential_players):
+    def veto_ceremony(self, nominees, potential_players):
         if self.veto_winner is not None:
             self.veto_holder_label.setText(f"Veto Holder: {self.veto_winner.name}")
             # If veto winner is also a nominee, force them to use it on self
-            if self.veto_winner in self.nominees:
+            if self.veto_winner in nominees:
                 self.print_text(
                     f"{self.veto_winner.name} has automatically used the Veto on themselves."
                 )
                 nominee_saved = self.veto_winner
                 nominee_saved.vetoed = True
-                self.nominees.remove(nominee_saved)
+                nominees.remove(nominee_saved)
 
             else:
                 veto_used = random.choice([True, False])
 
                 if veto_used:
-                    nominee_saved = random.choice(self.nominees)
+                    nominee_saved = random.choice(nominees)
 
                     if nominee_saved == self.veto_winner:
                         self.print_text(
@@ -553,7 +429,7 @@ class BigBrother(QWidget):
                             f"{self.veto_winner} has chosen to use the Power of Veto on {nominee_saved.name}."
                         )
 
-                    self.nominees.remove(nominee_saved)
+                    nominees.remove(nominee_saved)
                     nominee_saved.vetoed = True
 
                     # Replacement nominations
@@ -576,18 +452,18 @@ class BigBrother(QWidget):
                         while replacement_nom == nominee_saved:
                             replacement_nom = random.choice(potential_players)
 
-                    self.nominees.append(replacement_nom)
+                    nominees.append(replacement_nom)
                     self.print_text(
                         f"{self.HOH.name} has nominated {replacement_nom.name} as the replacement nominee."
                     )
 
-                    if len(self.nominees) == 2:
+                    if len(nominees) == 2:
                         self.replacement_nominees_label.setText(
-                            f"R.NOMS: {', '.join([nom.name for nom in self.nominees])}"
+                            f"R.NOMS: {', '.join([nom.name for nom in nominees])}"
                         )
-                    elif len(self.nominees) == 1:
+                    elif len(nominees) == 1:
                         self.replacement_nominees_label.setText(
-                            f"R.NOM: {self.nominees[0].name}"
+                            f"R.NOM: {nominees[0].name}"
                         )
                     else:
                         self.replacement_nominees_label.setText(
@@ -606,11 +482,11 @@ class BigBrother(QWidget):
                 "Nominees cannot be replaced this week."
             )
 
-    def eviction(self):
+    def eviction(self, nominees):
         # Eviction
         votes = {}
         for houseguest in set(self.houseguests) - set([self.HOH]):
-            votes[houseguest.name] = random.choice(self.nominees).name
+            votes[houseguest.name] = random.choice(nominees).name
         evicted_name = max(votes, key=list(votes.values()).count)
         evicted = next(hg for hg in self.houseguests if hg.name == evicted_name)
         self.print_text(f"{evicted.name} has been evicted from the Big Brother house.")
@@ -643,6 +519,7 @@ class BigBrother(QWidget):
         self.evicted_houseguests = []
         self.prev_HOH = None
         self.matrix = None
+        self.end_state = 0  # Add this line
 
         # Clear all labels
         self.clear_labels()
@@ -668,6 +545,32 @@ class BigBrother(QWidget):
         self.veto_holder_label.setText("")
         self.replacement_nominees_label.setText("")
         self.evicted_label.setText("")
+        
+    def show_preferences(self):
+        settings = QSettings("Company Name", "App Name")
+        
+        dialog = QDialog(self)
+        layout = QVBoxLayout(dialog)
+        
+        # Add setting for NUM_PLAYERS
+        num_players_label = QLabel("Number of Players: ")
+        num_players_spinner = QSpinBox()
+        num_players_spinner.setValue(settings.value("NUM_PLAYERS", defaultValue=12))
+        
+        # Add other settings...
+        
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.accepted.connect(dialog.accept)
+        button_box.rejected.connect(dialog.reject)
+        
+        layout.addWidget(num_players_label)
+        layout.addWidget(num_players_spinner)
+        # Add other widgets...
+        layout.addWidget(button_box)
+        
+        if dialog.exec() == QDialog.Accepted:
+            settings.setValue("NUM_PLAYERS", num_players_spinner.value())
+            # Save other settings...
 
     def event_spawner(self, variety=None):
         if variety is not None:
@@ -684,8 +587,8 @@ class BigBrother(QWidget):
                     self.event_2(hg1, hg2)
                 elif event_index == 2 and len(self.houseguests) >= 2:
                     hg1, hg2 = random.sample(self.houseguests, 2)
-                    a_members = [x for x in self.houseguests if x not in [hg2]]
-                    alliance = random.sample(a_members, random.randint(2, 4))
+                    alliance = random.sample(self.houseguests, min(len(self.houseguests), 3)) 
+
                     self.event_3(hg1, hg2, alliance)
                 else:
                     hg1, hg2 = random.sample(self.houseguests, 2)
@@ -753,28 +656,31 @@ class BigBrother(QWidget):
 
     # EVENTS ==================================================================
     def event_1(self, hg1, hg2, hg3):
-        self.print_text(f"{hg1.name} pulls {hg2.name} aside to talk about {hg3.name}.")
-
         if hg1.manipulativeness >= random.randint(0, hg2.emotionality):
             hg2.target = hg3.name
             self.print_text(f"{hg2.name} was swayed!")
 
-            # Opinion changes
-            if hg1.impressions[hg3.name] >= 5:
-                hg1.impressions[hg3.name] += 1
-                hg2.impressions[hg3.name] += 2
-            else:
-                hg1.impressions[hg3.name] -= 1
-                hg2.impressions[hg3.name] -= 2
-
+        # Opinion changes
+        if hg1.impressions[hg3.name] >= 5:
+            hg1.impressions[hg3.name] = min(10, hg1.impressions[hg3.name] + 1)
+            hg2.impressions[hg3.name] = max(0, min(10, hg2.impressions[hg3.name] + 2))
         else:
-            self.print_text(f"But {hg2.name} didn't buy it!")
+            hg1.impressions[hg3.name] = max(0, hg1.impressions[hg3.name] - 1)
+            hg2.impressions[hg3.name] = max(0, hg2.impressions[hg3.name] - 2)
 
-            # Opinion changes
-            hg1.impressions[hg2.name] -= 1
-            hg2.impressions[hg1.name] -= 1
+        self.print_text(f"{hg1.name} pulls {hg2.name} aside to talk about {hg3.name}.")
 
     def event_2(self, hg1, hg2):
+        if hg1.friendliness < hg2.emotionality:
+            hg1.target = hg2.name
+            hg2.target = hg1.name
+            self.print_text(f"{hg1.name} and {hg2.name} were swayed!")
+
+        # Opinion changes
+        if random.random() < 0.8:
+            hg1.impressions[hg2.name] = max(0, hg1.impressions[hg2.name] - 3)
+            hg2.impressions[hg1.name] = max(0, hg2.impressions[hg1.name] - 3)
+
         topic = random.choice(
             [
                 "the dishes",
@@ -785,24 +691,7 @@ class BigBrother(QWidget):
         )
         self.print_text(f"{hg1.name} gets in a fight with {hg2.name} over {topic}!")
 
-        if hg1.friendliness < hg2.emotionality:
-            hg1.target = hg2.name
-            hg2.target = hg1.name
-
-        # Opinion changes
-        if random.random() < 0.8:
-            hg1.impressions[hg2.name] = max(0, hg1.impressions[hg2.name] - 3)
-            hg2.impressions[hg1.name] = max(0, hg2.impressions[hg1.name] - 3)
-
     def event_3(self, hg1, hg2, alliance):
-        alliance_name = "The " + random.choice(
-            ["Wolves", "Dragons", "Lions", "Snakes", "Eagles"]
-        )
-
-        self.print_text(
-            f"{hg1.name} makes plans with {alliance_name} to evict {hg2.name}."
-        )
-
         if hg2 not in alliance and hg1 not in alliance:
             for member in alliance:
                 if member.loyalty > hg1.manipulativeness:
@@ -812,124 +701,18 @@ class BigBrother(QWidget):
                     )
                     self.print_text(f"{member.name} was swayed!")
 
+        alliance_name = "The " + random.choice(
+            ["Wolves", "Dragons", "Lions", "Snakes", "Eagles"]
+        )
+        self.print_text(
+            f"{hg1.name} makes plans with {alliance_name} to evict {hg2.name}."
+        )
+
     def event_4(self, hg1, hg2):
-        self.print_text(f"{hg1.name} has a pleasant conversation with {hg2.name}.")
+        # Opinion changes
         hg1.impressions[hg2.name] = min(10, hg1.impressions[hg2.name] + 3)
         hg2.impressions[hg1.name] = min(10, hg2.impressions[hg1.name] + 3)
-
-    def event_5(self, hg1, hg2):
-        alliance = Alliance([hg1, hg2])
-        self.print_text(
-            f"{hg1.name} created an alliance with {hg2.name} called {alliance.name}."
-        )
-        if hg1.impressions[hg2.name] >= 5 and hg2.impressions[hg1.name] >= 5:
-            hg1.impressions[hg2.name] += 3
-            hg2.impressions[hg1.name] += 3
-        elif hg1.impressions[hg2.name] < 5 and hg2.impressions[hg1.name] >= 5:
-            self.print_text(f"But {hg1.name} doesn't plan to stick to it...")
-            hg1.impressions[hg2.name] -= 1
-            hg2.impressions[hg1.name] += 3
-        elif hg1.impressions[hg2.name] >= 5 and hg2.impressions[hg1.name] < 5:
-            self.print_text(f"But {hg2.name} doesn't plan to stick to it...")
-            hg1.impressions[hg2.name] += 3
-            hg2.impressions[hg1.name] -= 1
-        else:
-            self.print_text(f"But it appears to be all for show...")
-            hg1.impressions[hg2.name] -= 1
-            hg2.impressions[hg1.name] -= 1
-        self.alliances.append(alliance)
-
-
-class EditNameDialog(QDialog):
-    def __init__(self, name, parent=None):
-        super().__init__(parent)
-
-        self.setWindowTitle("Edit Name")
-
-        # Layout
-        layout = QVBoxLayout(self)
-
-        # Name input
-        self.name_input = QLineEdit(name)
-        layout.addWidget(self.name_input)
-
-        # Buttons
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.Ok | QDialogButtonBox.Cancel, Qt.Horizontal, self
-        )
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
-
-    def get_name(self):
-        return self.name_input.text()
-
-
-class ImpressionMatrix(QWidget):
-    def __init__(self, houseguests):
-        super().__init__()
-        self.houseguests = houseguests
-        self.impressions = {}
-        for hg in houseguests:
-            self.impressions[hg.name] = hg.impressions.copy()
-        print(self.impressions)
-        self.init_matrix()
-        self.setStyleSheet(
-            """
-            QLabel {
-                font-size: 20px; 
-            }
-            """
-        )
-
-    def init_matrix(self):
-        # Create grid layout
-        grid = QGridLayout()
-        self.setLayout(grid)
-
-        # Size the grid based on number of houseguests
-        num_hgs = len(self.houseguests)
-        grid.setColumnStretch(0, 1)
-        grid.setRowStretch(0, 1)
-        grid.setColumnMinimumWidth(0, 75)
-        grid.setRowMinimumHeight(0, 75)
-        for col in range(1, num_hgs + 1):
-            grid.setColumnStretch(col, 1)
-            grid.setColumnMinimumWidth(col, 75)
-        for row in range(1, num_hgs + 1):
-            grid.setRowStretch(row, 1)
-            grid.setRowMinimumHeight(row, 75)
-
-        # Add names along top row and left column
-        for col, hg in enumerate(self.houseguests):
-            name = QLabel(hg.name)
-            name.setAlignment(Qt.AlignCenter)
-            grid.addWidget(name, 0, col + 1)
-
-        for row, hg in enumerate(self.houseguests):
-            name = QLabel(hg.name)
-            name.setAlignment(Qt.AlignCenter)
-            grid.addWidget(name, row + 1, 0)
-
-        # Add impression values to grid
-        for row, hg1 in enumerate(self.houseguests):
-            for col, hg2 in enumerate(self.houseguests):
-                if hg1 != hg2:
-                    print(hg1.name, hg2.name)
-                    value = QLabel(str(self.impressions[hg1.name][hg2.name]))
-                else:
-                    value = QLabel(str("X"))
-                value.setAlignment(Qt.AlignCenter)
-                grid.addWidget(value, row + 1, col + 1)
-
-    def appear(self, houseguests):
-        self.impressions = {}
-        for hg in houseguests:
-            self.impressions[hg.name] = hg.impressions.copy()
-        # print(self.impressions)
-        self.init_matrix()
-        self.show()
-
+        self.print_text(f"{hg1.name} has a casual conversation with {hg2.name}.")
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
