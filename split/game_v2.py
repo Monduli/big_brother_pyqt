@@ -8,7 +8,8 @@ from impression_matrix import ImpressionMatrix
 from name_edit import EditNameDialog
 from PyQt5.QtCore import QSettings, Qt, QTimer
 from PyQt5.QtGui import QColor, QPalette
-from PyQt5.QtWidgets import (QAction, QApplication, QDialog, QDialogButtonBox,
+from PyQt5.QtWidgets import (QAction, QApplication, QCheckBox, QComboBox,
+                             QDialog, QDialogButtonBox, QDoubleSpinBox,
                              QGridLayout, QHBoxLayout, QLabel, QLineEdit,
                              QListWidget, QMenuBar, QPushButton, QSizePolicy,
                              QSpacerItem, QSpinBox, QTextEdit, QVBoxLayout,
@@ -26,6 +27,10 @@ class BigBrother(QWidget):
         self.end_state = 0
         self.events = []  # Initialize a list to store events
         self.alliances = {}  # Initialize a dictionary to store alliances
+        self.settings = QSettings("Company Name", "App Name")
+        self.num_players = NUM_PLAYERS
+        self.print_speed = 0.8
+        self.season_num = 1
         self.create_players()
         self.do_impressions()
         self.initUI()
@@ -39,6 +44,7 @@ class BigBrother(QWidget):
             self.houseguest_list.addItem(hg.name)
             self.list_items.append(hg.name)
         self.houseguest_list.itemDoubleClicked.connect(self.edit_hg_name)
+        self.retain_season = self.settings.value("RetainSeason", defaultValue=False)
 
         # Set layout
         overall = QVBoxLayout()
@@ -53,6 +59,7 @@ class BigBrother(QWidget):
         # Layout for labels on left
         self.left_layout = QVBoxLayout()
 
+        self.title_season_label = QLabel("Big Brother (US)")
         self.hoh_label = QLabel("HOH: ")
         self.nominees_label = QLabel("NOMS: ")
 
@@ -90,6 +97,7 @@ class BigBrother(QWidget):
         self.impressions_btn.clicked.connect(self.show_impressions)
 
         self.left_layout = QVBoxLayout()
+        self.left_layout.addWidget(self.title_season_label)
         self.left_layout.addWidget(self.hoh_label)
         self.left_layout.addWidget(self.nominees_label)
         # Add veto holder label
@@ -146,8 +154,43 @@ class BigBrother(QWidget):
         layout.addLayout(right_layout)
 
         self.setLayout(overall)
+        
+        self.dark_style_sheet("self")
 
-        self.setStyleSheet(
+        dark_palette = self.make_dark_palette()
+
+        self.setPalette(dark_palette)
+        self.show()
+        
+    def dark_style_sheet(self, target):
+        if target == "self":
+            self.setStyleSheet(
+                """
+                QLabel, QCheckBox {
+                    font-size: 20px;
+                    color: white; 
+                }
+                QPushButton {
+                    background-color: #2D2D2D;
+                    color: white;
+                    border: 1px solid #555555;
+                    padding: 5px;
+                    border-radius: 5px;
+                }
+                QPushButton:hover {
+                    background-color: #3D3D3D;
+                }
+                QPushButton:pressed {
+                    background-color: #555555;
+                }
+                QTextEdit, QListWidget {
+                    background-color: #2D2D2D;
+                    color: white;
+                }
+                """
+            )
+        else:
+            target.setStyleSheet(
             """
             QLabel {
                 font-size: 20px;
@@ -172,7 +215,8 @@ class BigBrother(QWidget):
             }
             """
         )
-
+        
+    def make_dark_palette(self):
         # Dark Mode
         dark_palette = QPalette()
 
@@ -196,9 +240,7 @@ class BigBrother(QWidget):
 
         # Set highlighted text color to black
         dark_palette.setColor(QPalette.HighlightedText, QColor(0, 0, 0))
-
-        self.setPalette(dark_palette)
-        self.show()
+        return dark_palette
 
     # Print text to box instead of console
     def print_text(self, text, nl=True):
@@ -206,8 +248,11 @@ class BigBrother(QWidget):
             self.text_box.append(text + "\n")
         else:
             self.text_box.append(text)
-        # Pause for 300 milliseconds
-        QTimer.singleShot(300, lambda: None)
+        if self.print_speed > 0:
+            QTimer.singleShot(int(self.print_speed * 1000), self.enable_button)
+
+    def enable_button(self):
+        self.next_week_btn.setEnabled(True)
 
     def create_players(self):
         for i in range(self.num_players):
@@ -241,15 +286,21 @@ class BigBrother(QWidget):
         """Simulate a week of Big Brother"""
         self.text_box.clear()
         self.week = self.num_players - len(self.houseguests) + 1
+        tsl = self.title_season_label
+        if self.retain_season:
+            tsl.setText(f"Season {self.season_num}, Week {self.week}")
+        else:
+            tsl.setText(f"Week {self.week}")
         self.print_text(f"Week {self.week}:")
 
         if self.end_state == 1:
-            self.close()
+            self.reset()
 
         # Check if only 2 players left
         # If more than 2 players, play regular week
         if len(self.houseguests) > 2:
             # Regular game play
+            self.next_week_btn.setEnabled(False)
             self.select_HOH()
             self.event_spawner()
             nominees = self.select_noms()
@@ -260,6 +311,7 @@ class BigBrother(QWidget):
             self.event_spawner()
             self.eviction(nominees)
             self.event_spawner()
+            self.next_week_btn.setEnabled(True)
 
         else:
             # Finale 
@@ -333,8 +385,14 @@ class BigBrother(QWidget):
 
             if votes1 > votes2:
                 winner = self.houseguests[0]
+                winvotes = votes1
+                runvotes = votes2
+                runner_up = self.houseguests[1]
             elif votes2 > votes1:
                 winner = self.houseguests[1]
+                runner_up = self.houseguests[0]
+                winvotes = votes2
+                runvotes = votes1
             else:
                 winner = random.choice(self.houseguests)
 
@@ -351,14 +409,17 @@ class BigBrother(QWidget):
 
             # Set winner text
             self.hoh_label.setText(f"{winner.name} wins!")
-            # TODO: Change noms text to votes for winner
-            # TODO: Change veto text to votes for runner-up
+            self.nominees_label.setText(f"{winner.name} received {winvotes} to win.")
+            self.veto_holder_label.setText(f"{runner_up.name} received {runvotes} to win.")
             # TODO: Change r.noms text to AFP
             self.evicted_label.setText("Thanks for watching!")
 
             # Change button text
-            self.next_week_btn.setText("Finish")
+            self.next_week_btn.setText("Next Season")
             self.end_state = 1
+            
+            if self.retain_season:
+                self.season_num += 1
 
     def select_HOH(self):
         # Choose HOH
@@ -598,15 +659,39 @@ class BigBrother(QWidget):
         self.evicted_label.setText("")
 
     def show_preferences(self):
-        settings = QSettings("Company Name", "App Name")
-
+        
+        # func for toggling the custom speed
+        def toggle_custom_speed(self):
+            index = print_speed_presets.currentIndex()
+            if index == 3: 
+                print_speed_custom.setDisabled(False)
+            else:
+                print_speed_custom.setDisabled(True)
+                if index == 0:
+                    print_speed_custom.setValue(0) # Reset value 
+                elif index == 1:
+                    print_speed_custom.setValue(0.2) # Reset value 
+                elif index == 2:
+                    print_speed_custom.setValue(0.8) # Reset value 
+                    
         dialog = QDialog(self)
         layout = QVBoxLayout(dialog)
+        self.retain_season = self.settings.value("RetainSeason", False)
 
         # Add setting for NUM_PLAYERS
         num_players_label = QLabel("Number of Players: ")
         num_players_spinner = QSpinBox()
-        num_players_spinner.setValue(settings.value("NUM_PLAYERS", defaultValue=12))
+        num_players_spinner.setValue(self.settings.value("NUM_PLAYERS", 12))
+        
+        retain_season_cb = QCheckBox("Retain Previous Seasons")
+        
+        print_speed_label = QLabel("Print Speed:")
+        print_speed_presets = QComboBox()
+        print_speed_presets.addItems(["Instant", "Fast", "Slow", "Custom"])
+        print_speed_custom = QDoubleSpinBox()
+        print_speed_custom.setValue(0)
+        print_speed_presets.currentIndexChanged.connect(toggle_custom_speed)
+        print_speed_custom.setDisabled(True)
 
         # Add other settings...
 
@@ -616,12 +701,37 @@ class BigBrother(QWidget):
 
         layout.addWidget(num_players_label)
         layout.addWidget(num_players_spinner)
+        layout.addWidget(retain_season_cb)
+        
+        layout.addWidget(print_speed_label)
+        layout.addWidget(print_speed_presets) 
+        layout.addWidget(print_speed_custom)
         # Add other widgets...
         layout.addWidget(button_box)
+        
+        dark_palette = self.make_dark_palette()
+
+        self.dark_style_sheet(dialog)
+        dialog.setPalette(dark_palette)
 
         if dialog.exec() == QDialog.Accepted:
-            settings.setValue("NUM_PLAYERS", num_players_spinner.value())
+            ind = print_speed_presets.currentIndex()
+            custom_speed = print_speed_custom.value()
+            self.settings.setValue("NUM_PLAYERS", num_players_spinner.value())
+            self.settings.setValue("RetainSeason", retain_season_cb.isChecked())
+            self.update_print_speed(ind, custom_speed)
+            self.settings.sync()
             # Save other settings...
+            
+    def update_print_speed(self, index, csp):
+        if index == 0: # Slow
+            self.print_speed = 0.8 
+        elif index == 1: # Fast
+            self.print_speed = 0.2
+        elif index == 2: # Instant
+            self.print_speed = 0
+        else:
+            self.print_speed = csp
 
     def event_spawner(self, variety=None):
         if variety is not None:
