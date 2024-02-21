@@ -3,6 +3,7 @@ import sys
 
 import names
 from constants import *
+from customtextedit import CustomTextEdit
 from houseguest import HouseGuest
 from impression_matrix import ImpressionMatrix
 from name_edit import EditNameDialog
@@ -41,23 +42,25 @@ class BigBrother(QWidget):
         self.create_players()
         self.do_impressions()
         self.initUI()
+        self.make_formatting()
         self.introduce_players()
 
     def initUI(self):
         # Create the QListWidget and add all houseguests
-        
+
         # Colors
         self.chosen_color = QColor(220, 220, 220)
-        self.hoh_color = QColor("#FFFF00") # Yellow
+        self.hoh_color = QColor("#FFFF00")  # Yellow
         self.noms_color = QColor("#DC143C")  # Crimson
         self.veto_color = QColor("#FFA500")  # Orange
         self.evicted_color = QColor("#4B0082")  # Indigo
+        self.no_color = QColor("#FFFFFF")
         self.list_items = []
-        self.houseguest_list = QListWidget()
+        self.houseguest_list_widget = QListWidget()
         for hg in self.houseguests:
-            self.houseguest_list.addItem(hg.name)
+            self.houseguest_list_widget.addItem(hg.name)
             self.list_items.append(hg.name)
-        self.houseguest_list.itemDoubleClicked.connect(self.edit_hg_name)
+        self.houseguest_list_widget.itemDoubleClicked.connect(self.edit_hg_name)
         self.retain_season = self.settings.value("RetainSeason", defaultValue=False)
 
         # Set layout
@@ -107,18 +110,12 @@ class BigBrother(QWidget):
         file_menu.addAction(exit_action)
 
         # Allow clicking a houseguest to choose them
-        self.houseguest_list.itemClicked.connect(self.store_clicked_hg)
-
-        def choose_color():
-            color = QColorDialog.getColor()
-            if color.isValid():
-                self.chosen_color = color
-
-        self.choose_hg_btn = QPushButton("Choose Houseguest")
+        self.houseguest_list_widget.itemClicked.connect(self.store_clicked_hg)
+        self.choose_hg_btn = QPushButton("Follow HouseGuest")
         self.choose_hg_btn.clicked.connect(self.choose_houseguest)
 
-        self.choose_color_btn = QPushButton("Choose Color")
-        self.choose_color_btn.clicked.connect(choose_color)
+        # self.choose_color_btn = QPushButton("Choose Color")
+        # self.choose_color_btn.clicked.connect(choose_color)
 
         # Add "Impressions" button
         self.impressions_btn = QPushButton("Impressions")
@@ -139,12 +136,17 @@ class BigBrother(QWidget):
 
         self.left_layout.addWidget(self.veto_holder_label)
         self.left_layout.addWidget(self.replacement_nominees_label)
-
         self.left_layout.addWidget(self.evicted_label)
-
-        # Layout for list on right
-        right_layout = QVBoxLayout()
-        right_layout.addWidget(self.houseguest_list)
+        
+        self.houseguest_list_widget.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+        self.houseguest_list_widget.setMaximumHeight(375)
+        
+        
+        middle_layout = QVBoxLayout()
+        middle_layout.addWidget(self.houseguest_list_widget)
+        middle_layout.addWidget(self.choose_hg_btn)
+        self.houseguest_list_widget.setProperty("verticalAlignment", "AlignTop")
+        self.choose_hg_btn.setProperty("verticalAlignment", "AlignBottom")
 
         # Set the layout on the widget
         self.left_widget.setLayout(self.left_layout)
@@ -164,20 +166,18 @@ class BigBrother(QWidget):
         button_layout.addWidget(self.next_week_btn)
         button_layout.addWidget(self.impressions_btn)
         button_layout.addWidget(self.reset_btn)
-        button_layout.addWidget(self.choose_hg_btn)
-        button_layout.addWidget(self.choose_color_btn)
 
         overall.addLayout(layout)
         overall.addLayout(button_layout)
 
         # Add text display box
-        self.text_box = QTextEdit()
+        self.text_box = CustomTextEdit()
         self.text_box.setReadOnly(True)
 
         # Layout for list and text on right
         right_layout = QHBoxLayout()
 
-        right_layout.addWidget(self.houseguest_list)
+        right_layout.addLayout(middle_layout)
 
         right_layout.addWidget(self.text_box)
 
@@ -197,13 +197,13 @@ class BigBrother(QWidget):
 
     def set_chosen_houseguest(self):
         hg = next(h for h in self.houseguests if h.name == self.clicked_hg)
-        item = self.houseguest_list.findItems(self.clicked_hg, Qt.MatchExactly)[0]
+        item = self.houseguest_list_widget.findItems(self.clicked_hg, Qt.MatchExactly)[0]
 
         item.setBackground(QColor(255, 255, 0))
         item.setFont(item.font())
 
         self.choose_hg_btn.setDisabled(True)
-        self.houseguest_list.itemClicked.disconnect()
+        self.houseguest_list_widget.itemClicked.disconnect()
 
         # Set the chosen houseguest
         self.chosen_hg = hg
@@ -290,13 +290,13 @@ class BigBrother(QWidget):
 
     def choose_houseguest(self):
         hg = next(h for h in self.houseguests if h.name == self.clicked_hg)
-        item = self.houseguest_list.findItems(self.clicked_hg, Qt.MatchExactly)[0]
+        item = self.houseguest_list_widget.findItems(self.clicked_hg, Qt.MatchExactly)[0]
 
         item.setBackground(self.chosen_color)
         item.setFont(item.font())
 
         self.choose_hg_btn.setDisabled(True)
-        self.houseguest_list.itemClicked.disconnect()
+        self.houseguest_list_widget.itemClicked.disconnect()
 
         # Set the chosen houseguest
         self.chosen_hg = hg
@@ -307,26 +307,30 @@ class BigBrother(QWidget):
     # Print text to box instead of console
     def print_text(self, text, nl=True):
         if "HOH:" in text:
-            text = text.replace("HOH:", f"<font color='{self.hoh_color.name()}'>HOH:</font>")
+            self.formatting["HOH:"] = self.hoh_color.name()
         if self.HOH is not None:
-            text = text.replace(self.HOH.name, f"<font color='{self.hoh_color.name()}'>{self.HOH.name}</font>")
+            self.formatting[self.HOH.name] = self.hoh_color.name()
         if "is the new Head of Household" in text:
-            text = text.replace("is the new Head of Household", f"<font color='{self.hoh_color.name()}'>is the new Head of Household!</font>")
+            self.formatting["is the new Head of Household"] = self.hoh_color.name()
+
         for nom in self.nominees:
-            text = text.replace(nom.name, f"<font color='{self.noms_color.name()}'>{nom.name}</font>")
-            print(f"Replaced {nom.name}")
+            self.formatting[nom.name] = self.noms_color.name()
+
         if "veto holder" in text:
-            text = text.replace("veto holder", f"<font color='{self.veto_color.name()}'>veto holder</font>") 
+            self.formatting["veto holder"] = self.veto_color.name()
         if "veto" in text:
-            text = text.replace("veto", f"<font color='{self.veto_color.name()}'>veto</font>")
+            self.formatting["veto"] = self.veto_color.name()
         if self.veto_winner is not None and self.veto_winner.name != self.HOH.name:
-            text = text.replace(self.veto_winner.name, f"<font color='{self.veto_color.name()}'>{self.veto_winner.name}</font>")
+            self.formatting[self.veto_winner.name] = self.veto_color.name()
+
         if self.evicted:
-            text = text.replace(self.evicted.name, f"<font color='{self.evicted_color.name()}'>{self.evicted.name}</font>")
-        if nl is True:
-            self.text_box.append(text + "\n")
+            self.formatting[self.evicted.name] = self.evicted_color.name()
+
+        if nl:
+            self.text_box.appendFormattedText(text + "\n", self.formatting)
         else:
-            self.text_box.append(text)
+            self.text_box.appendFormattedText(text, self.formatting)
+
         if self.print_speed > 0:
             QTimer.singleShot(int(self.print_speed * 1000), self.enable_button)
 
@@ -349,6 +353,15 @@ class BigBrother(QWidget):
         for hg in self.houseguests:
             print(hg.name, hg.impressions)
 
+    def make_formatting(self):
+        self.formatting = {
+            "HOH:": self.hoh_color,
+            "is the new Head of Household": self.hoh_color,
+            # Add other formatting tags and colors here
+        }
+        for hg in self.houseguests:
+            self.formatting[hg.name] = self.no_color
+
     def show_impressions(self):
         # Create matrix if it doesn't exist (happens on reset also)
         self.matrix = ImpressionMatrix(self.houseguests)
@@ -365,7 +378,6 @@ class BigBrother(QWidget):
         """Simulate a week of Big Brother"""
         self.text_box.clear()
         self.choose_hg_btn.setDisabled(True)
-        self.choose_color_btn.setDisabled(True)
         self.week = self.num_players - len(self.houseguests) + 1
         tsl = self.title_season_label
         if self.retain_season:
@@ -496,11 +508,11 @@ class BigBrother(QWidget):
             for i in range(1, self.left_layout.count()):
                 self.left_layout.itemAt(i).widget().setText("")
             # Remove evicted houseguest from the list
-            for i in range(self.houseguest_list.count()):
-                self.print_text(self.houseguest_list.item(i).text())
-                if self.houseguest_list.item(i).text() != winner.name:
+            for i in range(self.houseguest_list_widget.count()):
+                self.print_text(self.houseguest_list_widget.item(i).text())
+                if self.houseguest_list_widget.item(i).text() != winner.name:
                     row = i
-            self.houseguest_list.takeItem(row)
+            self.houseguest_list_widget.takeItem(row)
 
             # Set winner text
             self.hoh_label.setText(f"{winner.name} wins!")
@@ -593,7 +605,9 @@ class BigBrother(QWidget):
         NUM_VETO_PLAYERS = 6
 
         # updated veto competition section
-        potential_players = list(set(self.houseguests) - set(self.nominees + [self.HOH]))
+        potential_players = list(
+            set(self.houseguests) - set(self.nominees + [self.HOH])
+        )
 
         if len(self.houseguests) > 3:
             veto_players = random.sample(
@@ -709,11 +723,11 @@ class BigBrother(QWidget):
 
         # Remove evicted houseguest from the list
         row = None
-        for i in range(self.houseguest_list.count()):
-            if self.houseguest_list.item(i).text() == evicted.name:
+        for i in range(self.houseguest_list_widget.count()):
+            if self.houseguest_list_widget.item(i).text() == evicted.name:
                 row = i
         if row is not None:
-            self.houseguest_list.takeItem(row)
+            self.houseguest_list_widget.takeItem(row)
 
         # Reset "vetoed" status
         for hg in self.houseguests:
@@ -722,7 +736,7 @@ class BigBrother(QWidget):
     # RESET ========================================
     def reset(self):
         self.houseguests = []
-        self.houseguest_list.clear()
+        self.houseguest_list_widget.clear()
         self.evicted_houseguests = []
         self.prev_HOH = None
         self.matrix = None
@@ -732,19 +746,18 @@ class BigBrother(QWidget):
         self.clear_labels()
 
         # Clear houseguest list
-        self.houseguest_list.clear()
+        self.houseguest_list_widget.clear()
 
         # Repopulate houseguests and list
         self.create_players()
         for hg in self.houseguests:
-            self.houseguest_list.addItem(hg.name)
+            self.houseguest_list_widget.addItem(hg.name)
         for h in self.houseguests:
             h.impressions = {}
         self.do_impressions()
 
         # Re-enable buttons
         self.choose_hg_btn.setDisabled(False)
-        self.choose_color_btn.setDisabled(False)
 
         # Reset button text
         self.next_week_btn.setText("Continue")
@@ -779,19 +792,16 @@ class BigBrother(QWidget):
 
         # Pick colors
         self.color_picker = QPushButton("Chosen HouseGuest Color")
-        self.color_picker.clicked.connect(self.pick_color)
-        
         self.hoh_color_picker = QPushButton("HOH Color")
-        self.hoh_color_picker.clicked.connect(self.pick_hoh_color)
-        
         self.noms_color_picker = QPushButton("Nominees Color")
-        self.noms_color_picker.clicked.connect(self.pick_noms_color)
-        
         self.veto_color_picker = QPushButton("Veto Winner Color")
-        self.veto_color_picker.clicked.connect(self.pick_veto_color)
-        
         self.evicted_color_picker = QPushButton("Evicted Color")
-        self.evicted_color_picker.clicked.connect(self.pick_evicted_color)
+
+        self.color_picker.clicked.connect(lambda: self.pick_color("chosen"))
+        self.hoh_color_picker.clicked.connect(lambda: self.pick_color("hoh"))
+        self.noms_color_picker.clicked.connect(lambda: self.pick_color("noms"))
+        self.veto_color_picker.clicked.connect(lambda: self.pick_color("veto"))
+        self.evicted_color_picker.clicked.connect(lambda: self.pick_color("evicted"))
 
         # Add setting for NUM_PLAYERS
         num_players_label = QLabel("Number of Players: ")
@@ -839,28 +849,44 @@ class BigBrother(QWidget):
             self.settings.sync()
             # Save other settings...
 
-    def pick_color(self):
+    def pick_color(self, target):
         color = QColorDialog.getColor()
         if color.isValid():
-            self.chosen_color = color
-            self.color_picker.setStyleSheet(f"""
-                background-color: {self.chosen_color.name()}; 
-                color: {self.chosen_color.lightness() > 128 and 'black' or 'white'};""")
-            
-    def pick_color(self):
-        self.chosen_color = QColorDialog.getColor()
-        
-    def pick_hoh_color(self):
-        self.hoh_color = QColorDialog.getColor()
-
-    def pick_noms_color(self):
-        self.noms_color = QColorDialog.getColor()  
-
-    def pick_veto_color(self):
-        self.veto_color = QColorDialog.getColor()    
-
-    def pick_evicted_color(self):
-        self.evicted_color = QColorDialog.getColor()
+            if target == "chosen":
+                self.chosen_color = color
+                self.color_picker.setStyleSheet(
+                    f"""
+                    background-color: {self.chosen_color.name()}; 
+                    color: {self.chosen_color.lightness() > 128 and 'black' or 'white'};"""
+                )
+            elif target == "hoh":
+                self.hoh_color = color
+                self.hoh_color_picker.setStyleSheet(
+                    f"""
+                    background-color: {self.hoh_color.name()}; 
+                    color: {self.hoh_color.lightness() > 128 and 'black' or 'white'};"""
+                )
+            elif target == "noms":
+                self.noms_color = color
+                self.noms_color_picker.setStyleSheet(
+                    f"""
+                    background-color: {self.noms_color.name()}; 
+                    color: {self.noms_color.lightness() > 128 and 'black' or 'white'};"""
+                )
+            elif target == "veto":
+                self.veto_color = color
+                self.veto_color_picker.setStyleSheet(
+                    f"""
+                    background-color: {self.veto_color.name()}; 
+                    color: {self.veto_color.lightness() > 128 and 'black' or 'white'};"""
+                )
+            elif target == "evicted":
+                self.evicted_color = color
+                self.evicted_color_picker.setStyleSheet(
+                    f"""
+                    background-color: {self.evicted_color.name()}; 
+                    color: {self.evicted_color.lightness() > 128 and 'black' or 'white'};"""
+                )
 
     def update_print_speed(self, index, csp):
         if index == 0:  # Slow
