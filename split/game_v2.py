@@ -8,12 +8,12 @@ from impression_matrix import ImpressionMatrix
 from name_edit import EditNameDialog
 from PyQt5.QtCore import QSettings, Qt, QTimer
 from PyQt5.QtGui import QColor, QPalette
-from PyQt5.QtWidgets import (QAction, QApplication, QCheckBox, QComboBox,
-                             QDialog, QDialogButtonBox, QDoubleSpinBox,
-                             QGridLayout, QHBoxLayout, QLabel, QLineEdit,
-                             QListWidget, QMenuBar, QPushButton, QSizePolicy,
-                             QSpacerItem, QSpinBox, QTextEdit, QVBoxLayout,
-                             QWidget)
+from PyQt5.QtWidgets import (QAction, QApplication, QCheckBox, QColorDialog,
+                             QComboBox, QDialog, QDialogButtonBox,
+                             QDoubleSpinBox, QGridLayout, QHBoxLayout, QLabel,
+                             QLineEdit, QListWidget, QMenuBar, QPushButton,
+                             QSizePolicy, QSpacerItem, QSpinBox, QTextEdit,
+                             QVBoxLayout, QWidget)
 
 
 class BigBrother(QWidget):
@@ -31,6 +31,9 @@ class BigBrother(QWidget):
         self.num_players = NUM_PLAYERS
         self.print_speed = 0.8
         self.season_num = 1
+        self.chosen_hg = None
+        self.chosen_color = QColor(220, 220, 220)  # Beige
+        self.clicked_hg = None
         self.create_players()
         self.do_impressions()
         self.initUI()
@@ -91,6 +94,20 @@ class BigBrother(QWidget):
         exit_action = QAction("Exit", self)
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
+        
+        # Allow clicking a houseguest to choose them
+        self.houseguest_list.itemClicked.connect(self.store_clicked_hg)
+        
+        def choose_color():
+            color = QColorDialog.getColor()
+            if color.isValid():
+                self.chosen_color = color
+                
+        self.choose_hg_btn = QPushButton("Choose Houseguest")
+        self.choose_hg_btn.clicked.connect(self.choose_houseguest)
+        
+        self.choose_color_btn = QPushButton("Choose Color")
+        self.choose_color_btn.clicked.connect(choose_color)
 
         # Add "Impressions" button
         self.impressions_btn = QPushButton("Impressions")
@@ -136,6 +153,8 @@ class BigBrother(QWidget):
         button_layout.addWidget(self.next_week_btn)
         button_layout.addWidget(self.impressions_btn)
         button_layout.addWidget(self.reset_btn)
+        button_layout.addWidget(self.choose_hg_btn)
+        button_layout.addWidget(self.choose_color_btn)
 
         overall.addLayout(layout)
         overall.addLayout(button_layout)
@@ -161,6 +180,22 @@ class BigBrother(QWidget):
 
         self.setPalette(dark_palette)
         self.show()
+        
+    def store_clicked_hg(self, item):
+        self.clicked_hg = item.text()
+        
+    def set_chosen_houseguest(self): 
+        hg = next(h for h in self.houseguests if h.name == self.clicked_hg)
+        item = self.houseguest_list.findItems(self.clicked_hg, Qt.MatchExactly)[0]
+
+        item.setBackground(QColor(255, 255, 0))  
+        item.setFont(item.font())
+
+        self.choose_hg_btn.setDisabled(True)
+        self.houseguest_list.itemClicked.disconnect()
+    
+        # Set the chosen houseguest
+        self.chosen_hg = hg 
         
     def dark_style_sheet(self, target):
         if target == "self":
@@ -241,9 +276,28 @@ class BigBrother(QWidget):
         # Set highlighted text color to black
         dark_palette.setColor(QPalette.HighlightedText, QColor(0, 0, 0))
         return dark_palette
+    
+    def choose_houseguest(self):
+        hg = next(h for h in self.houseguests if h.name == self.clicked_hg)
+        item = self.houseguest_list.findItems(self.clicked_hg, Qt.MatchExactly)[0]
+
+        item.setBackground(QColor(255, 255, 0))  
+        item.setFont(item.font())
+
+        self.choose_hg_btn.setDisabled(True)
+        self.houseguest_list.itemClicked.disconnect()
+        
+        # Set the chosen houseguest
+        self.chosen_hg = hg 
+        
+        # Reset clicked houseguest
+        self.clicked_hg = None
 
     # Print text to box instead of console
     def print_text(self, text, nl=True):
+        if self.chosen_hg and self.chosen_hg.name in text:
+            text = text.replace(self.chosen_hg.name, 
+                                f"<b>{self.chosen_hg.name}</b>")
         if nl is True:
             self.text_box.append(text + "\n")
         else:
@@ -285,6 +339,8 @@ class BigBrother(QWidget):
     def play_week(self):
         """Simulate a week of Big Brother"""
         self.text_box.clear()
+        self.choose_hg_btn.setDisabled(True)
+        self.choose_color_btn.setDisabled(True)
         self.week = self.num_players - len(self.houseguests) + 1
         tsl = self.title_season_label
         if self.retain_season:
@@ -646,6 +702,10 @@ class BigBrother(QWidget):
         for h in self.houseguests:
             h.impressions = {}
         self.do_impressions()
+        
+        # Re-enable buttons
+        self.choose_hg_btn.setDisabled(False)
+        self.choose_color_btn.setDisabled(False)
 
         # Reset button text
         self.next_week_btn.setText("Continue")

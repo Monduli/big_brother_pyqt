@@ -8,11 +8,12 @@ from impression_matrix import ImpressionMatrix
 from name_edit import EditNameDialog
 from PyQt5.QtCore import QSettings, Qt, QTimer
 from PyQt5.QtGui import QColor, QPalette
-from PyQt5.QtWidgets import (QAction, QApplication, QDialog, QDialogButtonBox,
-                             QGridLayout, QHBoxLayout, QLabel, QLineEdit,
-                             QListWidget, QMenuBar, QPushButton, QSizePolicy,
-                             QSpacerItem, QSpinBox, QTextEdit, QVBoxLayout,
-                             QWidget)
+from PyQt5.QtWidgets import (QAction, QApplication, QCheckBox, QColorDialog,
+                             QComboBox, QDialog, QDialogButtonBox,
+                             QDoubleSpinBox, QGridLayout, QHBoxLayout, QLabel,
+                             QLineEdit, QListWidget, QMenuBar, QPushButton,
+                             QSizePolicy, QSpacerItem, QSpinBox, QTextEdit,
+                             QVBoxLayout, QWidget)
 
 
 class BigBrother(QWidget):
@@ -22,10 +23,21 @@ class BigBrother(QWidget):
         self.num_players = NUM_PLAYERS
         self.houseguests = []
         self.evicted_houseguests = []
+        self.HOH = None
+        self.nominees = []
+        self.veto_winner = None
+        self.evicted = None
         self.prev_HOH = None
         self.end_state = 0
         self.events = []  # Initialize a list to store events
         self.alliances = {}  # Initialize a dictionary to store alliances
+        self.settings = QSettings("Company Name", "App Name")
+        self.num_players = NUM_PLAYERS
+        self.print_speed = 0.8
+        self.season_num = 1
+        self.chosen_hg = None
+        self.chosen_color = QColor(220, 220, 220)  # Beige
+        self.clicked_hg = None
         self.create_players()
         self.do_impressions()
         self.initUI()
@@ -33,12 +45,20 @@ class BigBrother(QWidget):
 
     def initUI(self):
         # Create the QListWidget and add all houseguests
+        
+        # Colors
+        self.chosen_color = QColor(220, 220, 220)
+        self.hoh_color = QColor("#FFFF00") # Yellow
+        self.noms_color = QColor("#DC143C")  # Crimson
+        self.veto_color = QColor("#FFA500")  # Orange
+        self.evicted_color = QColor("#4B0082")  # Indigo
         self.list_items = []
         self.houseguest_list = QListWidget()
         for hg in self.houseguests:
             self.houseguest_list.addItem(hg.name)
             self.list_items.append(hg.name)
         self.houseguest_list.itemDoubleClicked.connect(self.edit_hg_name)
+        self.retain_season = self.settings.value("RetainSeason", defaultValue=False)
 
         # Set layout
         overall = QVBoxLayout()
@@ -53,6 +73,7 @@ class BigBrother(QWidget):
         # Layout for labels on left
         self.left_layout = QVBoxLayout()
 
+        self.title_season_label = QLabel("Big Brother (US)")
         self.hoh_label = QLabel("HOH: ")
         self.nominees_label = QLabel("NOMS: ")
 
@@ -85,11 +106,26 @@ class BigBrother(QWidget):
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
 
+        # Allow clicking a houseguest to choose them
+        self.houseguest_list.itemClicked.connect(self.store_clicked_hg)
+
+        def choose_color():
+            color = QColorDialog.getColor()
+            if color.isValid():
+                self.chosen_color = color
+
+        self.choose_hg_btn = QPushButton("Choose Houseguest")
+        self.choose_hg_btn.clicked.connect(self.choose_houseguest)
+
+        self.choose_color_btn = QPushButton("Choose Color")
+        self.choose_color_btn.clicked.connect(choose_color)
+
         # Add "Impressions" button
         self.impressions_btn = QPushButton("Impressions")
         self.impressions_btn.clicked.connect(self.show_impressions)
 
         self.left_layout = QVBoxLayout()
+        self.left_layout.addWidget(self.title_season_label)
         self.left_layout.addWidget(self.hoh_label)
         self.left_layout.addWidget(self.nominees_label)
         # Add veto holder label
@@ -128,6 +164,8 @@ class BigBrother(QWidget):
         button_layout.addWidget(self.next_week_btn)
         button_layout.addWidget(self.impressions_btn)
         button_layout.addWidget(self.reset_btn)
+        button_layout.addWidget(self.choose_hg_btn)
+        button_layout.addWidget(self.choose_color_btn)
 
         overall.addLayout(layout)
         overall.addLayout(button_layout)
@@ -147,8 +185,59 @@ class BigBrother(QWidget):
 
         self.setLayout(overall)
 
-        self.setStyleSheet(
-            """
+        self.dark_style_sheet("self")
+
+        dark_palette = self.make_dark_palette()
+
+        self.setPalette(dark_palette)
+        self.show()
+
+    def store_clicked_hg(self, item):
+        self.clicked_hg = item.text()
+
+    def set_chosen_houseguest(self):
+        hg = next(h for h in self.houseguests if h.name == self.clicked_hg)
+        item = self.houseguest_list.findItems(self.clicked_hg, Qt.MatchExactly)[0]
+
+        item.setBackground(QColor(255, 255, 0))
+        item.setFont(item.font())
+
+        self.choose_hg_btn.setDisabled(True)
+        self.houseguest_list.itemClicked.disconnect()
+
+        # Set the chosen houseguest
+        self.chosen_hg = hg
+
+    def dark_style_sheet(self, target):
+        if target == "self":
+            self.setStyleSheet(
+                """
+                QLabel, QCheckBox {
+                    font-size: 20px;
+                    color: white; 
+                }
+                QPushButton {
+                    background-color: #2D2D2D;
+                    color: white;
+                    border: 1px solid #555555;
+                    padding: 5px;
+                    border-radius: 5px;
+                }
+                QPushButton:hover {
+                    background-color: #3D3D3D;
+                }
+                QPushButton:pressed {
+                    background-color: #555555;
+                }
+                QTextEdit, QListWidget {
+                    background-color: #2D2D2D;
+                    color: white;
+                }
+                """
+            )
+        else:
+            target.setStyleSheet(
+                """
             QLabel {
                 font-size: 20px;
                 color: white; 
@@ -171,8 +260,9 @@ class BigBrother(QWidget):
                 color: white;
             }
             """
-        )
+            )
 
+    def make_dark_palette(self):
         # Dark Mode
         dark_palette = QPalette()
 
@@ -196,18 +286,52 @@ class BigBrother(QWidget):
 
         # Set highlighted text color to black
         dark_palette.setColor(QPalette.HighlightedText, QColor(0, 0, 0))
+        return dark_palette
 
-        self.setPalette(dark_palette)
-        self.show()
+    def choose_houseguest(self):
+        hg = next(h for h in self.houseguests if h.name == self.clicked_hg)
+        item = self.houseguest_list.findItems(self.clicked_hg, Qt.MatchExactly)[0]
+
+        item.setBackground(self.chosen_color)
+        item.setFont(item.font())
+
+        self.choose_hg_btn.setDisabled(True)
+        self.houseguest_list.itemClicked.disconnect()
+
+        # Set the chosen houseguest
+        self.chosen_hg = hg
+
+        # Reset clicked houseguest
+        self.clicked_hg = None
 
     # Print text to box instead of console
     def print_text(self, text, nl=True):
+        if "HOH:" in text:
+            text = text.replace("HOH:", f"<font color='{self.hoh_color.name()}'>HOH:</font>")
+        if self.HOH is not None:
+            text = text.replace(self.HOH.name, f"<font color='{self.hoh_color.name()}'>{self.HOH.name}</font>")
+        if "is the new Head of Household" in text:
+            text = text.replace("is the new Head of Household", f"<font color='{self.hoh_color.name()}'>is the new Head of Household!</font>")
+        for nom in self.nominees:
+            text = text.replace(nom.name, f"<font color='{self.noms_color.name()}'>{nom.name}</font>")
+            print(f"Replaced {nom.name}")
+        if "veto holder" in text:
+            text = text.replace("veto holder", f"<font color='{self.veto_color.name()}'>veto holder</font>") 
+        if "veto" in text:
+            text = text.replace("veto", f"<font color='{self.veto_color.name()}'>veto</font>")
+        if self.veto_winner is not None and self.veto_winner.name != self.HOH.name:
+            text = text.replace(self.veto_winner.name, f"<font color='{self.veto_color.name()}'>{self.veto_winner.name}</font>")
+        if self.evicted:
+            text = text.replace(self.evicted.name, f"<font color='{self.evicted_color.name()}'>{self.evicted.name}</font>")
         if nl is True:
             self.text_box.append(text + "\n")
         else:
             self.text_box.append(text)
-        # Pause for 300 milliseconds
-        QTimer.singleShot(300, lambda: None)
+        if self.print_speed > 0:
+            QTimer.singleShot(int(self.print_speed * 1000), self.enable_button)
+
+    def enable_button(self):
+        self.next_week_btn.setEnabled(True)
 
     def create_players(self):
         for i in range(self.num_players):
@@ -240,30 +364,41 @@ class BigBrother(QWidget):
     def play_week(self):
         """Simulate a week of Big Brother"""
         self.text_box.clear()
+        self.choose_hg_btn.setDisabled(True)
+        self.choose_color_btn.setDisabled(True)
         self.week = self.num_players - len(self.houseguests) + 1
+        tsl = self.title_season_label
+        if self.retain_season:
+            tsl.setText(f"Season {self.season_num}, Week {self.week}")
+        else:
+            tsl.setText(f"Week {self.week}")
         self.print_text(f"Week {self.week}:")
 
         if self.end_state == 1:
-            self.close()
+            self.reset()
 
         # Check if only 2 players left
         # If more than 2 players, play regular week
         if len(self.houseguests) > 2:
             # Regular game play
+            self.next_week_btn.setEnabled(False)
             self.select_HOH()
             self.event_spawner()
-            nominees = self.select_noms()
+            self.select_noms()
             self.event_spawner()
-            pp = self.play_veto(nominees)
+            pp = self.play_veto()
             self.event_spawner()
-            self.veto_ceremony(nominees, pp)
+            self.veto_ceremony(pp)
             self.event_spawner()
-            self.eviction(nominees)
+            self.eviction()
             self.event_spawner()
+            self.next_week_btn.setEnabled(True)
 
         else:
-            # Finale 
-            self.print_text(f"Final 2: {self.houseguests[0].name} and {self.houseguests[1].name}")
+            # Finale
+            self.print_text(
+                f"Final 2: {self.houseguests[0].name} and {self.houseguests[1].name}"
+            )
 
             # Have them plead their case
             self.print_text(f"{self.houseguests[0].name} pleads their case...")
@@ -273,46 +408,54 @@ class BigBrother(QWidget):
             num_jurors = (NUM_PLAYERS // 2) + 1
             if num_jurors % 2 == 0:
                 num_jurors += 1
-                
+
             # Take the first num_jurors evicted houseguests as jurors
             jurors = self.evicted_houseguests[-num_jurors:]
 
             votes1 = 0
             votes2 = 0
-            
+
             # Jury votes (This is just for their dialog before the voting happens)
             for juror in jurors:
 
                 # Juror voting confessional dialog
-                imp1 = juror.impressions[self.houseguests[0].name] 
+                imp1 = juror.impressions[self.houseguests[0].name]
                 imp2 = juror.impressions[self.houseguests[1].name]
-                
+
                 score_diff = abs(imp1 - imp2)
-    
+
                 if imp1 > imp2:
-                    higher_name = self.houseguests[0].name 
+                    higher_name = self.houseguests[0].name
                 else:
                     higher_name = self.houseguests[1].name
-                    
+
                 if score_diff >= 8 and max(imp1, imp2) == 10:
-                    phrase = random.choice(FINALE_PHRASES[10]).format(name=higher_name) 
+                    phrase = random.choice(FINALE_PHRASES[10]).format(name=higher_name)
                 elif score_diff >= 6:
-                    phrase = random.choice(FINALE_PHRASES[8,9]).format(name=higher_name)
+                    phrase = random.choice(FINALE_PHRASES[8, 9]).format(
+                        name=higher_name
+                    )
                 elif score_diff >= 4:
-                    phrase = random.choice(FINALE_PHRASES[6,7]).format(name=higher_name) 
+                    phrase = random.choice(FINALE_PHRASES[6, 7]).format(
+                        name=higher_name
+                    )
                 elif score_diff >= 2:
-                    phrase = random.choice(FINALE_PHRASES[4,5]).format(name=higher_name)
+                    phrase = random.choice(FINALE_PHRASES[4, 5]).format(
+                        name=higher_name
+                    )
                 else:
-                    phrase = random.choice(FINALE_PHRASES[2,3]).format(name=higher_name)
-                    
+                    phrase = random.choice(FINALE_PHRASES[2, 3]).format(
+                        name=higher_name
+                    )
+
                 self.print_text(f"{juror.name}: {phrase}")
 
             # Read votes (This is where the votes are actually cast)
             for juror in jurors:
-                
-                imp1 = juror.impressions[self.houseguests[0].name] 
+
+                imp1 = juror.impressions[self.houseguests[0].name]
                 imp2 = juror.impressions[self.houseguests[1].name]
-                
+
                 if imp1 == imp2:
                     coin_flip = random.choice([0, 1])
                     if coin_flip == 0:
@@ -323,18 +466,28 @@ class BigBrother(QWidget):
                     votedfor = 0
                 else:
                     votedfor = 1
-                
+
                 if votedfor == 0:
-                    self.print_text(f"{juror.name} voted for {self.houseguests[0].name} to win Big Brother!")
+                    self.print_text(
+                        f"{juror.name} voted for {self.houseguests[0].name} to win Big Brother!"
+                    )
                     votes1 += 1
                 else:
-                    self.print_text(f"{juror.name} voted for {self.houseguests[1].name} to win Big Brother!")
+                    self.print_text(
+                        f"{juror.name} voted for {self.houseguests[1].name} to win Big Brother!"
+                    )
                     votes2 += 1
 
             if votes1 > votes2:
                 winner = self.houseguests[0]
+                winvotes = votes1
+                runvotes = votes2
+                runner_up = self.houseguests[1]
             elif votes2 > votes1:
                 winner = self.houseguests[1]
+                runner_up = self.houseguests[0]
+                winvotes = votes2
+                runvotes = votes1
             else:
                 winner = random.choice(self.houseguests)
 
@@ -351,14 +504,19 @@ class BigBrother(QWidget):
 
             # Set winner text
             self.hoh_label.setText(f"{winner.name} wins!")
-            # TODO: Change noms text to votes for winner
-            # TODO: Change veto text to votes for runner-up
+            self.nominees_label.setText(f"{winner.name} received {winvotes} to win.")
+            self.veto_holder_label.setText(
+                f"{runner_up.name} received {runvotes} to win."
+            )
             # TODO: Change r.noms text to AFP
             self.evicted_label.setText("Thanks for watching!")
 
             # Change button text
-            self.next_week_btn.setText("Finish")
+            self.next_week_btn.setText("Next Season")
             self.end_state = 1
+
+            if self.retain_season:
+                self.season_num += 1
 
     def select_HOH(self):
         # Choose HOH
@@ -390,7 +548,7 @@ class BigBrother(QWidget):
 
     def select_noms(self):
         # Nominate two players
-        nominees = []
+        self.nominees = []
 
         worst_impressions = [
             (name, impression)
@@ -402,49 +560,47 @@ class BigBrother(QWidget):
 
         for name, impression in worst_impressions:
             nominee = next(hg for hg in self.houseguests if hg.name == name)
-            nominees.append(nominee)
+            self.nominees.append(nominee)
 
-        if len(nominees) < 2:
+        if len(self.nominees) < 2:
 
             potential_nominees = list(
-                set(self.houseguests) - set([self.HOH]) - set(nominees)
+                set(self.houseguests) - set([self.HOH]) - set(self.nominees)
             )
             if potential_nominees:
                 if self.HOH.target and self.HOH.target not in self.houseguests:
-                    nominees.append(random.choice(potential_nominees))
+                    self.nominees.append(random.choice(potential_nominees))
                 else:
-                    nominees.append(random.choice(potential_nominees))
+                    self.nominees.append(random.choice(potential_nominees))
 
-                potential_nominees.remove(nominees[-1])
+                potential_nominees.remove(self.nominees[-1])
                 if potential_nominees:
-                    nominees.append(random.choice(potential_nominees))
+                    self.nominees.append(random.choice(potential_nominees))
 
-        for nominee in nominees:
+        for nominee in self.nominees:
             nominee.nominee = True
 
         self.print_text(
-            f"{self.HOH.name} has nominated {nominees[0].name} and {nominees[1].name} for eviction."
+            f"{self.HOH.name} has nominated {self.nominees[0].name} and {self.nominees[1].name} for eviction."
         )
         self.nominees_label.setText(
-            f"NOMS: {', '.join([nom.name for nom in nominees])}"
+            f"NOMS: {', '.join([nom.name for nom in self.nominees])}"
         )
 
-        return nominees
-
-    def play_veto(self, nominees):
+    def play_veto(self):
         # Play veto competition
         self.comp("Veto")
         NUM_VETO_PLAYERS = 6
 
         # updated veto competition section
-        potential_players = list(set(self.houseguests) - set(nominees + [self.HOH]))
+        potential_players = list(set(self.houseguests) - set(self.nominees + [self.HOH]))
 
         if len(self.houseguests) > 3:
             veto_players = random.sample(
                 potential_players,
                 k=min(len(potential_players), NUM_VETO_PLAYERS - 3),
             )
-            veto_players.extend(nominees + [self.HOH])
+            veto_players.extend(self.nominees + [self.HOH])
             self.veto_winner = random.choice(veto_players)
             self.print_text(f"{self.veto_winner} has won the Power of Veto!")
 
@@ -453,23 +609,23 @@ class BigBrother(QWidget):
 
         return potential_players
 
-    def veto_ceremony(self, nominees, potential_players):
+    def veto_ceremony(self, potential_players):
         if self.veto_winner is not None:
             self.veto_holder_label.setText(f"Veto Holder: {self.veto_winner.name}")
             # If veto winner is also a nominee, force them to use it on self
-            if self.veto_winner in nominees:
+            if self.veto_winner in self.nominees:
                 self.print_text(
                     f"{self.veto_winner.name} has automatically used the Veto on themselves."
                 )
                 nominee_saved = self.veto_winner
                 nominee_saved.vetoed = True
-                nominees.remove(nominee_saved)
+                self.nominees.remove(nominee_saved)
 
             else:
                 veto_used = random.choice([True, False])
 
                 if veto_used:
-                    nominee_saved = random.choice(nominees)
+                    nominee_saved = random.choice(self.nominees)
 
                     if nominee_saved == self.veto_winner:
                         self.print_text(
@@ -480,7 +636,7 @@ class BigBrother(QWidget):
                             f"{self.veto_winner} has chosen to use the Power of Veto on {nominee_saved.name}."
                         )
 
-                    nominees.remove(nominee_saved)
+                    self.nominees.remove(nominee_saved)
                     nominee_saved.vetoed = True
 
                     # Replacement nominations
@@ -500,13 +656,13 @@ class BigBrother(QWidget):
                         while replacement_nom == nominee_saved:
                             replacement_nom = random.choice(potential_players)
 
-                    nominees.append(replacement_nom)
+                    self.nominees.append(replacement_nom)
                     self.print_text(
                         f"{self.HOH.name} has nominated {replacement_nom.name} as the replacement nominee."
                     )
 
                     self.replacement_nominees_label.setText(
-                        f"R.NOMS: {', '.join([nom.name for nom in nominees])}"
+                        f"R.NOMS: {', '.join([nom.name for nom in self.nominees])}"
                     )
 
                 else:
@@ -521,13 +677,13 @@ class BigBrother(QWidget):
                 "Nominees cannot be replaced this week."
             )
 
-    def eviction(self, nominees):
+    def eviction(self):
         # Eviction
         votes = {}
         for houseguest in set(self.houseguests) - set([self.HOH]):
             # Calculate the average impression of each nominee
             nominee_impressions = {}
-            for nom in nominees:
+            for nom in self.nominees:
                 nominee_impressions[nom] = sum(
                     hg.impressions[nom.name]
                     for hg in self.houseguests
@@ -586,6 +742,10 @@ class BigBrother(QWidget):
             h.impressions = {}
         self.do_impressions()
 
+        # Re-enable buttons
+        self.choose_hg_btn.setDisabled(False)
+        self.choose_color_btn.setDisabled(False)
+
         # Reset button text
         self.next_week_btn.setText("Continue")
 
@@ -598,15 +758,55 @@ class BigBrother(QWidget):
         self.evicted_label.setText("")
 
     def show_preferences(self):
-        settings = QSettings("Company Name", "App Name")
+
+        # func for toggling the custom speed
+        def toggle_custom_speed(self):
+            index = print_speed_presets.currentIndex()
+            if index == 3:
+                print_speed_custom.setDisabled(False)
+            else:
+                print_speed_custom.setDisabled(True)
+                if index == 0:
+                    print_speed_custom.setValue(0)  # Reset value
+                elif index == 1:
+                    print_speed_custom.setValue(0.2)  # Reset value
+                elif index == 2:
+                    print_speed_custom.setValue(0.8)  # Reset value
 
         dialog = QDialog(self)
         layout = QVBoxLayout(dialog)
+        self.retain_season = self.settings.value("RetainSeason", False)
+
+        # Pick colors
+        self.color_picker = QPushButton("Chosen HouseGuest Color")
+        self.color_picker.clicked.connect(self.pick_color)
+        
+        self.hoh_color_picker = QPushButton("HOH Color")
+        self.hoh_color_picker.clicked.connect(self.pick_hoh_color)
+        
+        self.noms_color_picker = QPushButton("Nominees Color")
+        self.noms_color_picker.clicked.connect(self.pick_noms_color)
+        
+        self.veto_color_picker = QPushButton("Veto Winner Color")
+        self.veto_color_picker.clicked.connect(self.pick_veto_color)
+        
+        self.evicted_color_picker = QPushButton("Evicted Color")
+        self.evicted_color_picker.clicked.connect(self.pick_evicted_color)
 
         # Add setting for NUM_PLAYERS
         num_players_label = QLabel("Number of Players: ")
         num_players_spinner = QSpinBox()
-        num_players_spinner.setValue(settings.value("NUM_PLAYERS", defaultValue=12))
+        num_players_spinner.setValue(self.settings.value("NUM_PLAYERS", 12))
+
+        retain_season_cb = QCheckBox("Retain Previous Seasons")
+
+        print_speed_label = QLabel("Print Speed:")
+        print_speed_presets = QComboBox()
+        print_speed_presets.addItems(["Instant", "Fast", "Slow", "Custom"])
+        print_speed_custom = QDoubleSpinBox()
+        print_speed_custom.setValue(0)
+        print_speed_presets.currentIndexChanged.connect(toggle_custom_speed)
+        print_speed_custom.setDisabled(True)
 
         # Add other settings...
 
@@ -616,12 +816,61 @@ class BigBrother(QWidget):
 
         layout.addWidget(num_players_label)
         layout.addWidget(num_players_spinner)
+        layout.addWidget(retain_season_cb)
+        layout.addWidget(self.color_picker)
+
+        layout.addWidget(print_speed_label)
+        layout.addWidget(print_speed_presets)
+        layout.addWidget(print_speed_custom)
         # Add other widgets...
         layout.addWidget(button_box)
 
+        dark_palette = self.make_dark_palette()
+
+        self.dark_style_sheet(dialog)
+        dialog.setPalette(dark_palette)
+
         if dialog.exec() == QDialog.Accepted:
-            settings.setValue("NUM_PLAYERS", num_players_spinner.value())
+            ind = print_speed_presets.currentIndex()
+            custom_speed = print_speed_custom.value()
+            self.settings.setValue("NUM_PLAYERS", num_players_spinner.value())
+            self.settings.setValue("RetainSeason", retain_season_cb.isChecked())
+            self.update_print_speed(ind, custom_speed)
+            self.settings.sync()
             # Save other settings...
+
+    def pick_color(self):
+        color = QColorDialog.getColor()
+        if color.isValid():
+            self.chosen_color = color
+            self.color_picker.setStyleSheet(f"""
+                background-color: {self.chosen_color.name()}; 
+                color: {self.chosen_color.lightness() > 128 and 'black' or 'white'};""")
+            
+    def pick_color(self):
+        self.chosen_color = QColorDialog.getColor()
+        
+    def pick_hoh_color(self):
+        self.hoh_color = QColorDialog.getColor()
+
+    def pick_noms_color(self):
+        self.noms_color = QColorDialog.getColor()  
+
+    def pick_veto_color(self):
+        self.veto_color = QColorDialog.getColor()    
+
+    def pick_evicted_color(self):
+        self.evicted_color = QColorDialog.getColor()
+
+    def update_print_speed(self, index, csp):
+        if index == 0:  # Slow
+            self.print_speed = 0.8
+        elif index == 1:  # Fast
+            self.print_speed = 0.2
+        elif index == 2:  # Instant
+            self.print_speed = 0
+        else:
+            self.print_speed = csp
 
     def event_spawner(self, variety=None):
         if variety is not None:
