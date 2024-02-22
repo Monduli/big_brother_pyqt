@@ -27,9 +27,10 @@ class HouseGuest:
         self.HOH = False
         self.nominee = False
         self.veto = False
+        self.vetoed = False
         self.target = None
         self.impressions = {}
-        self.vetoed = False
+        self.alliances = []
 
         self.friendliness = random.randint(1, 5)
         self.loyalty = random.randint(1, 5)
@@ -43,3 +44,10 @@ class HouseGuest:
     def summary(self):
         """Return a string with the houseguest's info"""
         return f"{self.name} - {self.age}, {self.profession}"
+    
+    def join_alliance(self, alliance):
+        self.alliances.append(alliance.name) 
+
+    def leave_alliance(self, alliance_name):
+        if alliance_name in self.alliances:
+            self.alliances.remove(alliance_name)

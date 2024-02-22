@@ -13,7 +13,7 @@ class CustomTextEdit(QTextEdit):
         cursor = self.textCursor()
         cursor.movePosition(QTextCursor.End)
 
-        for line in text.split('\n'):
+        for line in text.split("\n"):
             for substring, color in formatting.items():
                 start = line.find(substring)
                 if start != -1:
@@ -25,13 +25,13 @@ class CustomTextEdit(QTextEdit):
                     cursor.insertText(substring, char_format)
 
                     # Remove the colored substring from the line
-                    line = line[start + len(substring):]  
+                    line = line[start + len(substring) :]
 
-                    # Reset to default formatting 
+                    # Reset to default formatting
                     cursor.insertText(line, default_char_format)
-                    line = ''
+                    line = ""
 
             cursor.insertText(line, default_char_format)
-            cursor.insertText('\n', default_char_format)
+            cursor.insertText("\n", default_char_format)
 
         self.setTextCursor(cursor)

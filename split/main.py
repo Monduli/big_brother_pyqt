@@ -18,5 +18,6 @@ def main(VERSION=1):
         ex = bb2()
     sys.exit(app.exec_())
 
+
 if __name__ == "__main__":
     main()
