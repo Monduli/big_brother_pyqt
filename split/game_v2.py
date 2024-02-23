@@ -1,6 +1,7 @@
 import random
 import re
 import sys
+from copy import deepcopy
 
 import names
 from constants import *
@@ -13,8 +14,9 @@ from PyQt5.QtGui import QColor, QPalette
 from PyQt5.QtWidgets import (QAction, QApplication, QCheckBox, QColorDialog,
                              QComboBox, QDialog, QDialogButtonBox,
                              QDoubleSpinBox, QGridLayout, QHBoxLayout, QLabel,
-                             QLineEdit, QListWidget, QMenuBar, QPushButton,
-                             QSizePolicy, QSpacerItem, QSpinBox, QTextEdit,
+                             QLineEdit, QListWidget, QListWidgetItem, QMenuBar,
+                             QPushButton, QSizePolicy, QSpacerItem, QSpinBox,
+                             QStyle, QStyledItemDelegate, QTextEdit,
                              QVBoxLayout, QWidget)
 
 
@@ -54,6 +56,8 @@ class BigBrother(QWidget):
         self.chosen_color = QColor(220, 220, 220)  # Beige
         self.clicked_hg = None
         self.week = 0
+        self.noms_for_list = None
+        self.renoms_for_list = None
         self.create_players()
         self.do_impressions()
         self.initUI()
@@ -62,6 +66,7 @@ class BigBrother(QWidget):
 
     def initUI(self):
         # Create the QListWidget and add all houseguests
+        self.setMinimumSize(1200, 800)
 
         # Colors
         self.chosen_color = QColor(220, 220, 220)
@@ -76,6 +81,9 @@ class BigBrother(QWidget):
             self.houseguest_list_widget.addItem(hg.name)
             self.list_items.append(hg.name)
         self.houseguest_list_widget.itemDoubleClicked.connect(self.edit_hg_name)
+        self.houseguest_list_widget.setSizePolicy(
+            QSizePolicy.Expanding, QSizePolicy.Preferred
+        )
         self.retain_season = self.settings.value("RetainSeason", defaultValue=False)
 
         # Set layout
@@ -85,29 +93,46 @@ class BigBrother(QWidget):
         # Create widget for left side
         self.left_widget = QWidget()
 
-        # Set fixed size
-        self.left_widget.setFixedSize(250, 400)
-
         # Layout for labels on left
         self.left_layout = QVBoxLayout()
 
         self.title_season_label = QLabel("Big Brother (US)")
-        self.hoh_label = QLabel("HOH: ")
-        self.nominees_label = QLabel("NOMS: ")
 
-        """ self.next_week_btn = QPushButton("Continue")
-        self.next_week_btn.clicked.connect(self.play_week) """
+        # Create list widget for left side information
+        self.left_list_widget = QListWidget()
+        self.left_list_widget.setStyleSheet("QListWidget::item { padding: 5px; }")
+        self.left_list_widget.setItemDelegate(NoFocusDelegate())
+        self.left_list_widget.setWordWrap(True)
+
+        # Create bold font for category titles
+        bold_font = self.left_list_widget.font()
+        bold_font.setBold(True)
+
+        # Add title item
+        title_item = QListWidgetItem("Big Brother (US)")
+        title_item.setFont(bold_font)
+        self.left_list_widget.addItem(title_item)
+
+        # Layout for left widget
+        self.left_layout = QVBoxLayout()
+        self.left_layout.addWidget(self.title_season_label)
+        self.left_layout.addWidget(self.left_list_widget)
+
+        # Then add the widget to the main layout
+        #layout.addWidget(self.left_widget)
 
         # Create menu bar
         menu_bar = QMenuBar()
-        menu_bar.setMinimumSize(600, 0)  # Set minimum width to 600px
+        screen = QApplication.primaryScreen()
+        menu_bar.setMinimumWidth(screen.size().width())  # Set minimum width to 600px
+        menu_bar.setMaximumHeight(28)
         menu_bar.setContentsMargins(20, 0, 20, 0)  # Left/right margins of 20px
         layout.setMenuBar(menu_bar)
 
         layout.setContentsMargins(0, 30, 0, 0)
 
         # Create File menu
-        file_menu = menu_bar.addMenu("File")
+        file_menu = menu_bar.addMenu("Options")
 
         # Add Reset, Preferences, and Exit actions to File menu
         reset_action = QAction("Reset", self)
@@ -136,28 +161,6 @@ class BigBrother(QWidget):
         self.impressions_btn = QPushButton("Impressions")
         self.impressions_btn.clicked.connect(self.show_impressions)
 
-        self.left_layout = QVBoxLayout()
-        self.left_layout.addWidget(self.title_season_label)
-        self.left_layout.addWidget(self.hoh_label)
-        self.left_layout.addWidget(self.nominees_label)
-        # Add veto holder label
-        self.veto_holder_label = QLabel("VETO: ")
-
-        # Add replacement nominees label
-        self.replacement_nominees_label = QLabel("R.NOMS: ")
-
-        # Add evicted houseguest label
-        self.evicted_label = QLabel("EVICT: ")
-
-        self.left_layout.addWidget(self.veto_holder_label)
-        self.left_layout.addWidget(self.replacement_nominees_label)
-        self.left_layout.addWidget(self.evicted_label)
-
-        self.houseguest_list_widget.setSizePolicy(
-            QSizePolicy.Preferred, QSizePolicy.Preferred
-        )
-        self.houseguest_list_widget.setMaximumHeight(375)
-
         middle_layout = QVBoxLayout()
         middle_layout.addWidget(self.houseguest_list_widget)
         middle_layout.addWidget(self.choose_hg_btn)
@@ -168,7 +171,7 @@ class BigBrother(QWidget):
         self.left_widget.setLayout(self.left_layout)
 
         # Then add the widget to the main layout
-        layout.addWidget(self.left_widget)
+        layout.addWidget(self.left_widget, stretch=1)
 
         # Add Continue button
         self.next_week_btn = QPushButton("Continue")
@@ -183,21 +186,16 @@ class BigBrother(QWidget):
         button_layout.addWidget(self.impressions_btn)
         button_layout.addWidget(self.reset_btn)
 
-        overall.addLayout(layout)
-        overall.addLayout(button_layout)
-
         # Add text display box
         self.text_box = CustomTextEdit()
         self.text_box.setReadOnly(True)
 
-        # Layout for list and text on right
-        right_layout = QHBoxLayout()
+        layout.addLayout(middle_layout, stretch=1)
 
-        right_layout.addLayout(middle_layout)
-
-        right_layout.addWidget(self.text_box)
-
-        layout.addLayout(right_layout)
+        layout.addWidget(self.text_box, stretch=1)
+        
+        overall.addLayout(layout)
+        overall.addLayout(button_layout)
 
         self.setLayout(overall)
 
@@ -347,6 +345,53 @@ class BigBrother(QWidget):
 
             item.setForeground(color)
 
+        # Clear the left list widget
+        self.left_list_widget.clear()
+
+        # Add title item
+        title_item = QListWidgetItem("Big Brother (US)")
+        bold_font = title_item.font()
+        bold_font.setBold(True)
+        title_item.setFont(bold_font)
+        self.left_list_widget.addItem(title_item)
+
+        # Add HOH item
+        hoh_item = QListWidgetItem("HOH: ")
+        if self.HOH:
+            hoh_item.setText(f"HOH: {self.HOH.name}")
+            hoh_item.setForeground(self.hoh_color)
+        self.left_list_widget.addItem(hoh_item)
+
+        # Add Nominees item
+        noms_item = QListWidgetItem("Nominees: ")
+        if self.noms_for_list:
+            noms_text = ", ".join([nom.name for nom in self.noms_for_list])
+            noms_item.setText(f"Nominees: {noms_text}")
+            noms_item.setForeground(self.noms_color)
+        self.left_list_widget.addItem(noms_item)
+
+        # Add Veto Holder item
+        veto_item = QListWidgetItem("Veto Holder: ")
+        if self.veto_winner and self.veto_winner.name != self.HOH.name:
+            veto_item.setText(f"Veto Holder: {self.veto_winner.name}")
+            veto_item.setForeground(self.veto_color)
+        self.left_list_widget.addItem(veto_item)
+
+        # Add Replacement Nominees item
+        rnoms_item = QListWidgetItem("Replacement Nominees: ")
+        if self.renoms_for_list:
+            rnoms_text = ", ".join([rnom.name for rnom in self.renoms_for_list])
+            rnoms_item.setText(f"Replacement Nominees: {rnoms_text}")
+            rnoms_item.setForeground(self.noms_color)
+        self.left_list_widget.addItem(rnoms_item)
+
+        # Add Evicted item
+        evicted_item = QListWidgetItem("Evicted: ")
+        if self.evicted:
+            evicted_item.setText(f"Evicted: {self.evicted.name}")
+            evicted_item.setForeground(self.evicted_color)
+        self.left_list_widget.addItem(evicted_item)
+
     # Print text to box instead of console
     def print_text(self, text, nl=True):
         print(text)
@@ -425,6 +470,9 @@ class BigBrother(QWidget):
     def play_week(self):
         """Simulate a week of Big Brother"""
         self.text_box.clear()
+        if self.end_state == 1:
+            self.reset()
+            return
         self.week += 1
         self.choose_hg_btn.setDisabled(True)
         tsl = self.title_season_label
@@ -434,17 +482,15 @@ class BigBrother(QWidget):
             tsl.setText(f"Week {self.week}")
         self.print_text(f"Week {self.week}:")
 
-        if self.end_state == 1:
-            self.reset()
+        if self.week > 1:
+            self.update_evicted()
+            self.reset_hgs()
 
         # Check if only 2 players left
         # If more than 2 players, play regular week
         if len(self.houseguests) > 2:
             # Regular game play
             self.next_week_btn.setEnabled(False)
-            if self.week > 1:
-                self.update_evicted()
-                self.reset_hgs()
             self.select_HOH()
             self.set_text_color()
             self.event_spawner()
@@ -560,24 +606,12 @@ class BigBrother(QWidget):
                 winner = random.choice(self.houseguests)
 
             self.print_text(f"{winner.name} wins Big Brother!")
-            # Clear all labels except first
-            for i in range(1, self.left_layout.count()):
-                self.left_layout.itemAt(i).widget().setText("")
             # Remove evicted houseguest from the list
             for i in range(self.houseguest_list_widget.count()):
                 self.print_text(self.houseguest_list_widget.item(i).text())
                 if self.houseguest_list_widget.item(i).text() != winner.name:
                     row = i
             self.houseguest_list_widget.takeItem(row)
-
-            # Set winner text
-            self.hoh_label.setText(f"{winner.name} wins!")
-            self.nominees_label.setText(f"{winner.name} received {winvotes} to win.")
-            self.veto_holder_label.setText(
-                f"{runner_up.name} received {runvotes} to win."
-            )
-            # TODO: Change r.noms text to AFP
-            self.evicted_label.setText("Thanks for watching!")
 
             # Change button text
             self.next_week_btn.setText("Next Season")
@@ -630,7 +664,6 @@ class BigBrother(QWidget):
 
         self.HOH.HOH = True
         self.print_text(f"{self.HOH.name} is the new Head of Household")
-        self.hoh_label.setText(f"HOH: {self.HOH.name}")
 
     def select_noms(self):
         # Nominate two players
@@ -668,9 +701,8 @@ class BigBrother(QWidget):
         self.print_text(
             f"{self.HOH.name} has nominated {self.nominees[0].name} and {self.nominees[1].name} for eviction."
         )
-        self.nominees_label.setText(
-            f"NOMS: {', '.join([nom.name for nom in self.nominees])}"
-        )
+
+        self.noms_for_list = deepcopy(self.nominees)
 
     def play_veto(self):
         # Play veto competition
@@ -699,7 +731,6 @@ class BigBrother(QWidget):
     def veto_ceremony(self):
         used = False
         if self.veto_winner is not None:
-            self.veto_holder_label.setText(f"Veto Holder: {self.veto_winner.name}")
             # If veto winner is also a nominee, force them to use it on self
             if self.veto_winner in self.nominees:
                 self.print_text(
@@ -726,7 +757,6 @@ class BigBrother(QWidget):
                     self.print_text(
                         f"{self.veto_winner} has chosen not to use the Power of Veto."
                     )
-                    self.replacement_nominees_label.setText(f"The veto was not used.")
 
             if used:
                 # Replacement nominations
@@ -759,15 +789,12 @@ class BigBrother(QWidget):
                     print(self.houseguests)
                     print()
 
-                self.replacement_nominees_label.setText(
-                    f"R.NOMS: {', '.join([nom.name for nom in self.nominees])}"
-                )
-
         else:
-            self.veto_holder_label.setText("The Veto is not played this week.")
-            self.replacement_nominees_label.setText(
-                "Nominees cannot be replaced this week."
-            )
+            pass
+
+        self.renoms_for_list = deepcopy(self.nominees)
+        if self.renoms_for_list == self.noms_for_list:
+            self.renoms_for_list = "No change"
 
     def eviction(self):
         # Eviction
@@ -795,7 +822,6 @@ class BigBrother(QWidget):
         self.print_text(f"{evicted.name} has been evicted from the Big Brother house.")
         self.evicted_houseguests.append(evicted)
         # Update evicted houseguest
-        self.evicted_label.setText(f"Evicted: {evicted.name}")
         self.evicted = evicted
 
         # Update targets after eviction
@@ -843,9 +869,7 @@ class BigBrother(QWidget):
         self.prev_HOH = None
         self.matrix = None
         self.end_state = 0  # Add this line
-
-        # Clear all labels
-        self.clear_labels()
+        self.week = 0
 
         # Clear houseguest list
         self.houseguest_list_widget.clear()
@@ -863,14 +887,11 @@ class BigBrother(QWidget):
 
         # Reset button text
         self.next_week_btn.setText("Continue")
-
-    def clear_labels(self):
-        # Clear all labels
-        self.hoh_label.setText("")
-        self.nominees_label.setText("")
-        self.veto_holder_label.setText("")
-        self.replacement_nominees_label.setText("")
-        self.evicted_label.setText("")
+        self.introduce_players()
+        
+        tsl = self.title_season_label
+        if self.retain_season:
+            tsl.setText(f"Season {self.season_num}")
 
     def show_preferences(self):
         # func for toggling the custom speed
@@ -1199,8 +1220,45 @@ class BigBrother(QWidget):
         if impr[hgname] > 10:
             impr[hgname] = 10
 
+    def resizeEvent(self, event):
+
+        # Get current widths
+        col1_width = self.left_widget.width()
+        col2_width = self.houseguest_list_widget.width()
+        col3_width = self.text_box.width()
+
+        # Calculate additional width to distribute
+        available_width = self.width() - col1_width - col2_width - col3_width
+
+        # Distribute extra width
+        added_width = available_width / 3
+
+        # Set new widths
+        new_col1_width = col1_width + added_width
+        self.left_widget.setFixedWidth(int(new_col1_width))
+
+        # Set new widths
+        new_col2_width = col2_width + added_width
+        self.left_widget.setFixedWidth(int(new_col2_width))
+
+        # Set new widths
+        new_col3_width = col3_width + added_width
+        self.left_widget.setFixedWidth(int(new_col3_width))
+
+
+class NoFocusDelegate(QStyledItemDelegate):
+    def paint(self, painter, option, index):
+        option.state &= ~QStyle.State_HasFocus
+        super().paint(painter, option, index)
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+
+    font = QApplication.font()
+    font.setPointSize(14)
+    app.setFont(font)
+
     ex = BigBrother()
+    QApplication.instance().screenAdded.connect(ex.resizeEvent)
     sys.exit(app.exec_())
