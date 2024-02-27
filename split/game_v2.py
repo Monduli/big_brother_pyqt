@@ -71,9 +71,10 @@ class BigBrother(QWidget):
         # Colors
         self.chosen_color = QColor(220, 220, 220)
         self.hoh_color = QColor("#FFFF00")  # Yellow
-        self.noms_color = QColor("#DC143C")  # Crimson
+        self.noms_color = QColor("#6A5ACD")  # Slate Blue
         self.veto_color = QColor("#FFA500")  # Orange
-        self.evicted_color = QColor("#4B0082")  # Indigo
+        self.replacement_noms_color = QColor("#1A1ABB")  # 
+        self.evicted_color = QColor("#DB7093")  # Purple
         self.no_color = QColor("#FFFFFF")
         self.list_items = []
         self.houseguest_list_widget = QListWidget()
