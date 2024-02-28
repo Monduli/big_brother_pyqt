@@ -10,12 +10,29 @@ from impression_matrix import ImpressionMatrix
 from name_edit import EditNameDialog
 from PyQt5.QtCore import QSettings, Qt, QTimer
 from PyQt5.QtGui import QColor, QPalette
-from PyQt5.QtWidgets import (QAction, QApplication, QCheckBox, QColorDialog,
-                             QComboBox, QDialog, QDialogButtonBox,
-                             QDoubleSpinBox, QGridLayout, QHBoxLayout, QLabel,
-                             QLineEdit, QListWidget, QMenuBar, QPushButton,
-                             QSizePolicy, QSpacerItem, QSpinBox, QTextEdit,
-                             QVBoxLayout, QWidget)
+from PyQt5.QtWidgets import (
+    QAction,
+    QApplication,
+    QCheckBox,
+    QColorDialog,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QDoubleSpinBox,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QMenuBar,
+    QPushButton,
+    QSizePolicy,
+    QSpacerItem,
+    QSpinBox,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 
 
 class Alliance:
@@ -62,7 +79,7 @@ class BigBrother(QWidget):
 
     def initUI(self):
         # Create the QListWidget and add all houseguests
-        
+
         # Colors
         self.chosen_color = QColor(220, 220, 220)
         self.hoh_color = QColor("#FFFF00")  # Yellow
@@ -76,7 +93,9 @@ class BigBrother(QWidget):
             self.houseguest_list_widget.addItem(hg.name)
             self.list_items.append(hg.name)
         self.houseguest_list_widget.itemDoubleClicked.connect(self.edit_hg_name)
-        self.houseguest_list_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self.houseguest_list_widget.setSizePolicy(
+            QSizePolicy.Expanding, QSizePolicy.Preferred
+        )
         self.retain_season = self.settings.value("RetainSeason", defaultValue=False)
 
         # Set layout
@@ -1200,29 +1219,28 @@ class BigBrother(QWidget):
 
     def resizeEvent(self, event):
 
-        # Get current widths 
-        col1_width = self.left_widget.width()  
+        # Get current widths
+        col1_width = self.left_widget.width()
         col2_width = self.houseguest_list_widget.width()
         col3_width = self.text_box.width()
 
         # Calculate additional width to distribute
         available_width = self.width() - col1_width - col2_width - col3_width
-        
-        # Distribute extra width 
+
+        # Distribute extra width
         added_width = available_width / 3
-        
+
         # Set new widths
         new_col1_width = col1_width + added_width
         self.left_widget.setFixedWidth(int(new_col1_width))
-        
+
         # Set new widths
         new_col2_width = col2_width + added_width
         self.left_widget.setFixedWidth(int(new_col2_width))
-        
+
         # Set new widths
         new_col3_width = col3_width + added_width
         self.left_widget.setFixedWidth(int(new_col3_width))
-
 
 
 if __name__ == "__main__":

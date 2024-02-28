@@ -44,9 +44,9 @@ class HouseGuest:
     def summary(self):
         """Return a string with the houseguest's info"""
         return f"{self.name} - {self.age}, {self.profession}"
-    
+
     def join_alliance(self, alliance):
-        self.alliances.append(alliance.name) 
+        self.alliances.append(alliance.name)
 
     def leave_alliance(self, alliance_name):
         if alliance_name in self.alliances:

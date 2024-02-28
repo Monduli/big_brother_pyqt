@@ -4,27 +4,24 @@ A Big Brother (US) simulator made in Python (uses PyQT for the interface). Early
 
 ## Overview
 
-This was originally a terminal app and proper text is still being added to the PyQT interface. If you feel something is missing from the interface, look at the terminal. If it's still missing, see the TODO section below.
-
 ### On opening:
 
-- The app will generate a list of 12 houseguests. To change the number, update `NUM_PLAYERS` at the top of the code.
-- Houseguests are assigned a random profession. Add more to `PROFESSIONS` for more variety.
+- The app will generate a list of 12 houseguests.
+- Houseguests are assigned a random profession.
 
-### On "Continue":
+### Important distinction: Proceed is one action at a time. Conclude Week is the whole week at once.
 
 - An HOH is randomly chosen. Code prevents repeat HOHs.
 - The HOH nominates two players based on impressions and targets (see "Under the Hood" below). 
 - The HOH, nominees, and 3 randomly selected houseguests play in the POV competition.
-- Someone wins the POV and decides randomly whether to use it or not, unless they won it themselves.
-- Houseguests vote to evict someone. For now this is random.
+- Someone wins the POV and decides randomly whether to use it (guaranteed if they are nominated) or not
+- Houseguests vote to evict someone. Alliances do factor into it somewhat.
 - With 3 or fewer players left, there is no POV competition.
-- At the final 2, the remaining houseguests give speeches, which currently do nothing.
-- In the terminal, you'll see who the evicted houseguests voted for and a winner is declared.
+- At the final 2, the winner is chosen.
 
 ### On "Reset":
 
-- Resets the game. Currently breaks some buttons.
+- Resets the game.
 
 ## Under the Hood
 
@@ -33,53 +30,30 @@ This was originally a terminal app and proper text is still being added to the P
 - Impressions are set randomly at the start but change based on random events. 
 - Impressions determine nominations: either the bottom 2, or their target.
 - Targets are set randomly via events like an Alliance deciding on someone.
+- Alliances form randomly. Currently the names they pick are dumb, but that's not so far off from half the alliances on the show anyway.
 
 ## TODO
 
-- Slow down the process for more tension.
-- Implement Alliances.
+- Improve alliances.
 - Create an executable for non-programmers.  
-- Make statistics influence voting off.
-- Add randomly generated competition flavor text.
-
-## Additions (Feb 8)
-
-- Dark mode
-- Gameplay statistics 
-- Random events
-- Impressions button
-- Houseguests now target and nominate others
-
-## Bug Fixes (Feb 8) 
-
-- Fixed duplicate nominations
-- Fixed various crashes from new features  
-- Fixed re-nomination after veto bug
-- Fixed reset button position
+- Make more statistics influence actions.
+- Improve comps.
 
 ## Remaining Bugs
-Last updated 02/09/2024
+Last updated 02/28/2024
 
 ### Crashes
 
-- Clicking reset and then impressions crashes the program.
-- Calling `play_week()` after game ends with 2 players left causes crash.
+- There are some issues with Conclude Week if you're in the middle of a week via Proceed.
 
 ### Gameplay
 
-- HOH is chosen from already evicted players if all remaining players have been HOH.
-- Players can be nominated twice in the same week.
-- Veto holder can win veto and not use it on themselves if they are a nominee.
-- Evicted houseguests can still be nominated after being evicted.
+- All fixed for now!
 
 ### UI/UX
 
-- Renominations don't show properly in UI text.
-- Text box doesn't scroll automatically with new text added.
-- Impressions matrix doesn't update with latest values when opened.
+- All fixed for now!
 
 ### Other
 
-- Alliances feature not fully implemented.
-- Voting off players is still random, not based on impressions.
-- No real gameplay comp events yet.
+- All fixed for now!

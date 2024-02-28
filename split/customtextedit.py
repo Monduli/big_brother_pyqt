@@ -21,7 +21,7 @@ class CustomTextEdit(QTextEdit):
 
                     # Apply color formatting
                     char_format = QTextCharFormat()
-                    char_format.setForeground(QColor(color))
+                    char_format.setForeground(color)
                     cursor.insertText(substring, char_format)
 
                     # Remove the colored substring from the line
@@ -35,3 +35,17 @@ class CustomTextEdit(QTextEdit):
             cursor.insertText("\n", default_char_format)
 
         self.setTextCursor(cursor)
+
+    def appendHtml(self, html):
+        cursor = self.textCursor()
+        cursor.movePosition(QTextCursor.End)
+        cursor.insertHtml(html)
+        self.setTextCursor(cursor)
+        
+    def appendPlainText(self, text):
+        cursor = self.textCursor()
+        cursor.movePosition(QTextCursor.End)
+        cursor.insertText(text)
+        self.setTextCursor(cursor)
+        
+    
