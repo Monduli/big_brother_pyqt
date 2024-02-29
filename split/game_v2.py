@@ -54,13 +54,14 @@ class BigBrother(QWidget):
         self.print_speed = 0.8
         self.season_num = 1
         self.chosen_hg = None
-        self.chosen_color = QColor(220, 220, 220)  # Beige
         self.clicked_hg = None
         self.week = 0
         self.noms_for_list = None
         self.renoms_for_list = None
         self.debug_mode = self.settings.value("DebugMode", False, type=bool)
+        self.debug_impressions = True
         self.step_index = 0
+        self.formatting = {}
         self.create_players()
         self.do_impressions()
         self.initUI()
@@ -78,6 +79,7 @@ class BigBrother(QWidget):
         self.replacement_noms_color = QColor("#1A1ABB")  #
         self.evicted_color = QColor("#DB7093")  # Purple
         self.no_color = QColor("#FFFFFF")
+        self.imp_color = QColor("#FA00B3")
         self.list_items = []
         self.houseguest_list_widget = QListWidget()
         for hg in self.houseguests:
@@ -438,16 +440,39 @@ class BigBrother(QWidget):
 
         lines = text.split("\n")
         for line in lines:
-            for word in line.split():
-                name = self.get_name_with_format(word)
-                if name:
+            formatted_indices = []
+            formatted_phrases = []
+            for phrase, format in self.formatting.items():
+                if phrase in line:
+                    start = line.index(phrase)
+                    end = start + len(phrase)
+                    formatted_indices.append((start, end))
+                    formatted_phrases.append((phrase, format))
+
+            if formatted_indices:
+                last_end = 0
+                for start, end, (phrase, format) in sorted(zip(
+                    [i[0] for i in formatted_indices],
+                    [i[1] for i in formatted_indices],
+                    formatted_phrases
+                )):
+                    cursor.insertText(line[last_end:start], default_char_format)
                     char_format = QTextCharFormat()
-                    char_format.setForeground(name[1])
-                    cursor.insertText(name[0], char_format)
-                    cursor.insertText(" ", default_char_format)
-                else:
-                    cursor.insertText(word, default_char_format)
-                    cursor.insertText(" ", default_char_format)
+                    char_format.setForeground(format)
+                    cursor.insertText(phrase, char_format)
+                    last_end = end
+                cursor.insertText(line[last_end:], default_char_format)
+            else:
+                for word in line.split():
+                    name = self.get_name_with_format(word)
+                    if name:
+                        char_format = QTextCharFormat()
+                        char_format.setForeground(name[1])
+                        cursor.insertText(name[0], char_format)
+                        cursor.insertText(" ", default_char_format)
+                    else:
+                        cursor.insertText(word, default_char_format)
+                        cursor.insertText(" ", default_char_format)
             cursor.insertText("\n", default_char_format)
 
         if nl:
@@ -457,7 +482,8 @@ class BigBrother(QWidget):
 
     def get_name_with_format(self, char):
         for name, format in self.formatting.items():
-            if name.startswith(char):
+            print(name, format, self.no_color)
+            if name.startswith(char) and format is not self.no_color:
                 return name, format
         return None
 
@@ -490,24 +516,24 @@ class BigBrother(QWidget):
             self.print_debug([hg.name, hg.impressions])
 
     def make_formatting(self):
-        self.formatting = {}
         
         for hg in self.houseguests:
             n = hg.name
-            self.formatting[n] = self.no_color
-            if self.HOH is not None and self.formatting[n] == self.no_color:
+            if n in self.formatting.keys():
+                del self.formatting[n]
+            if self.HOH is not None and n not in self.formatting.keys():
                 if self.HOH.name == n:
                     print(f"Setting {n} to hoh_color")
                     self.formatting[n] = self.hoh_color
-            if self.evicted is not None and self.formatting[n] == self.no_color:
+            if self.evicted is not None and n not in self.formatting.keys():
                 if self.evicted.name == n:
                     print(f"Setting {n} to evicted_color")
                     self.formatting[n] = self.evicted_color
-            if self.veto_winner is not None and self.formatting[n] == self.no_color:
+            if self.veto_winner is not None and n not in self.formatting.keys():
                 if self.veto_winner.name == n:
                     print(f"Setting {n} to veto_color")
                     self.formatting[n] = self.veto_color
-            if self.nominees is not None and self.formatting[n] == self.no_color:
+            if self.nominees is not None and n not in self.formatting.keys():
                 for p in self.nominees:
                     if p.name == n:
                         print(f"Setting {n} to nom_color")
@@ -1264,6 +1290,10 @@ class BigBrother(QWidget):
                 "Egg Heads",
                 "Spelling Bee",
             ]
+            hoh_text = f"The houseguests compete in the {random.choice(comps)} HOH competition."
+            self.formatting[hoh_text] = self.hoh_color
+            self.print_text(hoh_text)
+
         elif v == "Veto":
             comps = [
                 "Block the Veto",
@@ -1277,12 +1307,12 @@ class BigBrother(QWidget):
                 "Egg on Your Face",
                 "Spelling Veto",
             ]
+            veto_text = f"The houseguests compete in the {random.choice(comps)} veto competition."
+            self.formatting[veto_text] = self.veto_color
+            self.print_text(veto_text)
+
         else:
             return
-
-        self.print_text(
-            "The houseguests compete in the " + random.choice(comps) + " competition."
-        )
 
         for hg1 in self.houseguests:
             for hg2 in self.houseguests:
@@ -1336,42 +1366,59 @@ class BigBrother(QWidget):
                     self.event_4(hg1, hg2)
 
     def event_1(self, hg1, hg2, hg3):
+        # Player pulls aside another player to tell them to target third player.
+        # If succeeds, adds 2 to impressions for each hg other than the third who loses 2.
+
+        self.print_text(f"{hg1.name} pulls {hg2.name} aside to talk about {hg3.name}.")
+        self.print_text(f"{hg1.name}: You know, {hg2.name}, {hg3.name} is just no good...")
         if hg1.manipulativeness >= random.randint(0, hg2.emotionality):
             hg2.target = hg3.name
             self.print_text(f"{hg2.name} was swayed!")
-
-        # Opinion changes
-        if hg1.impressions[hg3.name] >= 5:
-            hg1.impressions[hg3.name] = min(10, hg1.impressions[hg3.name] + 1)
-            hg2.impressions[hg3.name] = max(0, min(10, hg2.impressions[hg3.name] + 2))
+            self.swayed_event(hg1, hg2)
+            self.swayed_event(hg2, hg1)
+            self.unswayed_event(hg2, hg3)
         else:
-            hg1.impressions[hg3.name] = max(0, hg1.impressions[hg3.name] - 1)
-            hg2.impressions[hg3.name] = max(0, hg2.impressions[hg3.name] - 2)
-
-        self.print_text(f"{hg1.name} pulls {hg2.name} aside to talk about {hg3.name}.")
+            self.print_text(f"{hg2.name} was not swayed!")
+            self.unswayed_event(hg1, hg2)
+            self.unswayed_event(hg2, hg1)
 
     def event_2(self, hg1, hg2):
-        if hg1.friendliness < hg2.emotionality:
+        topic = self.get_fight_topic()
+        self.print_text(f"{hg1.name} gets in a fight with {hg2.name} over {topic}!")
+        
+        if hg1.friendliness > hg2.emotionality or hg2.friendliness > hg1.emotionality:
+            self.print_text(f"But their friendship is too strong! {hg1.name} and {hg2.name} made up!")
+        elif hg1.friendliness == hg2.emotionality and hg2.friendliness == hg1.emotionality:
+            self.print_text(f"In a rare move, {hg1.name} and {hg2.name} agree to disagree!")
+        else:
             hg1.target = hg2.name
             hg2.target = hg1.name
-            self.print_text(f"{hg1.name} and {hg2.name} were swayed!")
+            self.unswayed_event(hg1, hg2, 3)
+            self.unswayed_event(hg2, hg1, 3)
+            self.print_text(f"They're inconsolable! They both walk off in a huff after a screaming fit!")
 
-        # Opinion changes
-        if random.random() < 0.8:
-            hg1.impressions[hg2.name] = max(0, hg1.impressions[hg2.name] - 3)
-            hg2.impressions[hg1.name] = max(0, hg2.impressions[hg1.name] - 3)
-
-        topic = random.choice(
-            [
-                "the dishes",
-                "who ate the last slice of pizza",
-                "who flirts too much",
-                "who snores",
-            ]
-        )
-        self.print_text(f"{hg1.name} gets in a fight with {hg2.name} over {topic}!")
+    def get_fight_topic(self):
+        topic = random.choice(fight_topics)
+        if "{food}" in topic:
+            foods = ["slice of pizza", "slice of cake", "cookie", "sandwich", "piece of fruit", "bag of chips"]
+            topic = topic.replace("{food}", random.choice(foods))
+        if "{drink}" in topic:
+            drinks = ["bottle of wine", "beer", "soda", "juice", "cup of coffee", "glass of milk"]
+            topic = topic.replace("{drink}", random.choice(drinks))
+        if "{item}" in topic:
+            items = ["towel", "book", "magazine", "remote control", "dirty dish", "piece of clothing"]
+            topic = topic.replace("{item}", random.choice(items))
+        if "{room}" in topic:
+            rooms = ["kitchen", "living room", "bathroom", "bedroom"]
+            topic = topic.replace("{room}", random.choice(rooms))
+        if "{houseguest}" in topic:
+            hgs = [hg.name for hg in self.houseguests]
+            topic = topic.replace("{houseguest}", random.choice(hgs))
+        return topic    
+        
 
     def event_3(self, hg1, hg2):
+        # One houseguest suggests an alliance go after another player. Individually checks the members of the alliance.
         pick = None
 
         potential_alliances = []
@@ -1392,28 +1439,14 @@ class BigBrother(QWidget):
                 if member.name in self.houseguests:
                     if member.loyalty > hg1.manipulativeness:
                         member.target = hg2.name
-                        self.print_debug("EVENT 3")
-                        self.print_debug(f"HGS: {self.houseguests}")
-                        self.print_debug(
-                            f"{member.name}'S IMPRESSIONS: {member.impressions}"
-                        )
-                        member.impressions[hg1.name] += 2
-                        member.impressions[hg2.name] -= random.randint(2, 4)
-                        self.check_impressions(member.impressions, hg1.name)
-                        self.check_impressions(member.impressions, hg2.name)
+                        self.swayed_event(member, hg1)
+                        self.unswayed_event(member, hg2)
                         self.print_text(f"{member.name} was convinced.")
 
     def event_4(self, hg1, hg2):
-        # Opinion changes
-        hg1.impressions[hg2.name] = min(
-            10, hg1.impressions[hg2.name] + random.randint(0, 3)
-        )
-        hg2.impressions[hg1.name] = min(
-            10, hg2.impressions[hg1.name] + random.randint(0, 3)
-        )
+        # Casual conversation. 100% chance of increasing impression by 1 or 2.
         self.print_text(f"{hg1.name} has a casual conversation with {hg2.name}.")
-
-    import re
+        self.swayed_event(hg1, hg2)
 
     def event_5(self, hg1):
         alliance_size = random.randint(2, len(self.houseguests) // 2)
@@ -1431,6 +1464,25 @@ class BigBrother(QWidget):
         self.print_text(
             f"{alliance_name} alliance forms between {', '.join([member.name for member in alliance_members])}."
         )
+
+    def swayed_event(self, hg, target):
+        to_add = random.randint(1, 2)
+        hg.impressions[target.name] = min(10, hg.impressions[target.name] + to_add)
+        if self.debug_impressions is True:
+            imp_text = f"{hg.name}: +{to_add} with {target.name}"
+            self.formatting[imp_text] = self.imp_color
+            self.print_text(imp_text)
+            
+    def unswayed_event(self, hg, target, strength=None):
+        if strength:
+            to_sub = strength
+        else:
+            to_sub = random.randint(1, 2)
+        hg.impressions[target.name] = min(10, hg.impressions[target.name] - to_sub)
+        if self.debug_impressions is True:
+            imp_text = f"{hg.name}: -{to_sub} with {target.name}"
+            self.formatting[imp_text] = self.imp_color
+            self.print_text(imp_text)
 
     def generate_alliance_name(self, members):
         if random.random() < 0.3:
