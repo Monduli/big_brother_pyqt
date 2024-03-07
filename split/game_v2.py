@@ -49,7 +49,7 @@ class BigBrother(QWidget):
         self.end_state = 0
         self.events = []  # Initialize a list to store events
         self.alliances = {}  # Initialize a dictionary to store alliances
-        self.settings = QSettings("Company Name", "App Name")
+        self.settings = QSettings("Danco", "BBQT")
         self.num_players = NUM_PLAYERS
         self.print_speed = 0.8
         self.season_num = 1
@@ -1314,12 +1314,19 @@ class BigBrother(QWidget):
         else:
             return
 
+        self.imp_adjustment()
+        
+    def imp_adjustment(self):
         for hg1 in self.houseguests:
             for hg2 in self.houseguests:
                 if hg1 != hg2:
-                    adjustment = random.randint(-1, 1)
-                    hg1.impressions[hg2.name] += adjustment
-                    hg2.impressions[hg1.name] += adjustment
+                    r = random.randint(-1, 1)
+                    if r == 1:
+                        self.swayed_event(hg1, hg2,1,False)
+                        self.swayed_event(hg2, hg1,1,False)
+                    elif r == -1:
+                        self.unswayed_event(hg1, hg2,1,False)
+                        self.unswayed_event(hg2, hg1,1,False)
 
     def edit_hg_name(self, item):
         # Get houseguest object
@@ -1341,6 +1348,7 @@ class BigBrother(QWidget):
 
     # EVENTS ==================================================================
     def event_spawner(self, variety=None):
+        self.make_formatting()
         if variety is not None:
             self.houseguests = self.comp(self.houseguests, variety)
         else:
@@ -1465,21 +1473,30 @@ class BigBrother(QWidget):
             f"{alliance_name} alliance forms between {', '.join([member.name for member in alliance_members])}."
         )
 
-    def swayed_event(self, hg, target):
-        to_add = random.randint(1, 2)
-        hg.impressions[target.name] = min(10, hg.impressions[target.name] + to_add)
-        if self.debug_impressions is True:
+    def swayed_event(self, hg, target, strength=None, debug=True):
+        self.make_formatting()
+        if strength:
+            to_add = strength
+        else:
+            to_add = random.randint(1, 2)
+        new = hg.impressions[target.name] + to_add
+        adj = min(10, new)
+        hg.impressions[target.name] = max(1, adj)
+        if self.debug_impressions is True and debug == True:
             imp_text = f"{hg.name}: +{to_add} with {target.name}"
             self.formatting[imp_text] = self.imp_color
             self.print_text(imp_text)
             
-    def unswayed_event(self, hg, target, strength=None):
+    def unswayed_event(self, hg, target, strength=None, debug=True):
+        self.make_formatting()
         if strength:
             to_sub = strength
         else:
             to_sub = random.randint(1, 2)
-        hg.impressions[target.name] = min(10, hg.impressions[target.name] - to_sub)
-        if self.debug_impressions is True:
+        new = hg.impressions[target.name] - to_sub
+        adj = min(10, new)
+        hg.impressions[target.name] = max(1, adj)
+        if self.debug_impressions is True and debug == True:
             imp_text = f"{hg.name}: -{to_sub} with {target.name}"
             self.formatting[imp_text] = self.imp_color
             self.print_text(imp_text)

@@ -10,6 +10,7 @@ class ColoredLabel(QLabel):
         self.update_color()
 
     def update_color(self):
+        color = "#FFFFFF" # default color
         if self.value == "X":
             self.setStyleSheet("background-color: gray; color: white;")
         else:
