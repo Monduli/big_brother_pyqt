@@ -4,52 +4,24 @@ import sys
 from copy import deepcopy
 
 import names
+from alliance import Alliance
+from bberror import BBError
 from constants import *
 from customtextedit import CustomTextEdit
+from events import Events
 from houseguest import HouseGuest
 from impression_matrix import ImpressionMatrix
 from name_edit import EditNameDialog
 from PyQt5.QtCore import QSettings, Qt, QTimer
-from PyQt5.QtGui import QColor, QPalette
-from PyQt5.QtWidgets import (
-    QAction,
-    QApplication,
-    QCheckBox,
-    QColorDialog,
-    QComboBox,
-    QDialog,
-    QDialogButtonBox,
-    QDoubleSpinBox,
-    QGridLayout,
-    QHBoxLayout,
-    QLabel,
-    QLineEdit,
-    QListWidget,
-    QListWidgetItem,
-    QMenuBar,
-    QPushButton,
-    QSizePolicy,
-    QSpacerItem,
-    QSpinBox,
-    QStyle,
-    QStyledItemDelegate,
-    QTextEdit,
-    QVBoxLayout,
-    QWidget,
-)
-
-
-class Alliance:
-    def __init__(self, name):
-        self.name = name
-        self.members = []
-        self.target = None
-
-    def add_member(self, houseguest):
-        self.members.append(houseguest)
-
-    def set_target(self, target):
-        self.target = target
+from PyQt5.QtGui import QColor, QPalette, QTextCharFormat, QTextCursor
+from PyQt5.QtWidgets import (QAction, QApplication, QCheckBox, QColorDialog,
+                             QComboBox, QDialog, QDialogButtonBox,
+                             QDoubleSpinBox, QGridLayout, QHBoxLayout, QLabel,
+                             QLineEdit, QListWidget, QListWidgetItem, QMenuBar,
+                             QPushButton, QSizePolicy, QSpacerItem, QSpinBox,
+                             QStyle, QStyledItemDelegate, QTextEdit,
+                             QVBoxLayout, QWidget)
+from utils import Utility
 
 
 class BigBrother(QWidget):
@@ -64,24 +36,28 @@ class BigBrother(QWidget):
         self.veto_winner = None
         self.evicted = None
         self.prev_HOH = None
+        self.used = None
         self.end_state = 0
         self.events = []  # Initialize a list to store events
         self.alliances = {}  # Initialize a dictionary to store alliances
-        self.settings = QSettings("Company Name", "App Name")
+        self.settings = QSettings("Danco", "BBQT")
         self.num_players = NUM_PLAYERS
         self.print_speed = 0.8
         self.season_num = 1
         self.chosen_hg = None
-        self.chosen_color = QColor(220, 220, 220)  # Beige
         self.clicked_hg = None
         self.week = 0
         self.noms_for_list = None
         self.renoms_for_list = None
         self.debug_mode = self.settings.value("DebugMode", False, type=bool)
+        self.debug_impressions = True
+        self.step_index = 0
+        self.formatting = {}
         self.create_players()
         self.do_impressions()
         self.initUI()
-        self.make_formatting()
+        self.utility = Utility(self)
+        self.events = Events(self)
         self.introduce_players()
 
     def initUI(self):
@@ -94,8 +70,11 @@ class BigBrother(QWidget):
         self.noms_color = QColor("#6A5ACD")  # Slate Blue
         self.veto_color = QColor("#FFA500")  # Orange
         self.replacement_noms_color = QColor("#1A1ABB")  #
-        self.evicted_color = QColor("#DB7093")  # Purple
+        self.evicted_color = QColor("#FFEBEB")  # Purple
         self.no_color = QColor("#FFFFFF")
+        self.imp_color = QColor("#FA00B3")
+        self.name_color = QColor("#00FF00")
+        self.evict_statement_color = QColor("#FF0000") # Red
         self.list_items = []
         self.houseguest_list_widget = QListWidget()
         for hg in self.houseguests:
@@ -197,8 +176,11 @@ class BigBrother(QWidget):
         # Then add the widget to the main layout
         layout.addWidget(self.left_widget, stretch=1)
 
+        self.proceed_btn = QPushButton("Proceed")
+        self.proceed_btn.clicked.connect(self.proceed)
+
         # Add Continue button
-        self.next_week_btn = QPushButton("Continue")
+        self.next_week_btn = QPushButton("Forward 1 Week")
         self.next_week_btn.clicked.connect(self.play_week)
 
         # Add reset button
@@ -206,6 +188,7 @@ class BigBrother(QWidget):
         self.reset_btn.clicked.connect(self.reset)
 
         button_layout = QVBoxLayout()
+        button_layout.addWidget(self.proceed_btn)
         button_layout.addWidget(self.next_week_btn)
         button_layout.addWidget(self.impressions_btn)
         button_layout.addWidget(self.reset_btn)
@@ -351,23 +334,28 @@ class BigBrother(QWidget):
         # Reset clicked houseguest
         self.clicked_hg = None
 
-    def set_text_color(self):
+    def set_text_color_hglw(self):
         for i in range(self.houseguest_list_widget.count()):
             item = self.houseguest_list_widget.item(i)
             item.setForeground(self.no_color)
 
         for i in range(self.houseguest_list_widget.count()):
+            in_nom = False
             item = self.houseguest_list_widget.item(i)
             name = item.text()
             hg = next(h for h in self.houseguests if h.name == name)
+            
+            if self.nominees:
+                if hg in self.nominees:
+                    in_nom = True
 
             if hg in self.evicted_houseguests:
                 color = self.evicted_color
-            elif hg.veto:
+            elif self.veto_winner == hg:
                 color = self.veto_color
-            elif hg.HOH:
+            elif self.HOH == hg:
                 color = self.hoh_color
-            elif hg.nominee:
+            elif in_nom == True:
                 color = self.noms_color
             else:
                 color = self.no_color
@@ -385,71 +373,59 @@ class BigBrother(QWidget):
         self.left_list_widget.addItem(title_item)
 
         # Add HOH item
-        hoh_item = QListWidgetItem("HOH: ")
-        if self.HOH:
-            hoh_item.setText(f"HOH: {self.HOH.name}")
-            hoh_item.setForeground(self.hoh_color)
-        self.left_list_widget.addItem(hoh_item)
+        if self.HOH is not None:
+            hoh_item = QListWidgetItem("HOH: ")
+            if self.HOH:
+                hoh_item.setText(f"HOH: {self.HOH.name}")
+                hoh_item.setForeground(self.hoh_color)
+            self.left_list_widget.addItem(hoh_item)
 
         # Add Nominees item
-        noms_item = QListWidgetItem("Nominees: ")
-        if self.noms_for_list:
-            noms_text = ", ".join([nom.name for nom in self.noms_for_list])
-            noms_item.setText(f"Nominees: {noms_text}")
-            noms_item.setForeground(self.noms_color)
-        self.left_list_widget.addItem(noms_item)
+        if self.nominees is not None:
+            noms_item = QListWidgetItem("Nominees: ")
+            if self.noms_for_list:
+                noms_text = ", ".join([nom.name for nom in self.noms_for_list])
+                noms_item.setText(f"Nominees: {noms_text}")
+                noms_item.setForeground(self.noms_color)
+            self.left_list_widget.addItem(noms_item)
 
         # Add Veto Holder item
-        veto_item = QListWidgetItem("Veto Holder: ")
-        if self.veto_winner and self.veto_winner.name != self.HOH.name:
+        if self.veto_winner is not None:
+            veto_item = QListWidgetItem("Veto Holder: ")
             veto_item.setText(f"Veto Holder: {self.veto_winner.name}")
             veto_item.setForeground(self.veto_color)
-        self.left_list_widget.addItem(veto_item)
+            self.left_list_widget.addItem(veto_item)
+
+        if self.used is not None:
+            veto_used_item = QListWidgetItem("Veto Used: ")
+            if self.used:
+                veto_used_item.setText(f"Veto Used: Yes, on {self.nominee_saved.name}")
+            else:
+                veto_used_item.setText("Veto Used: No")
+            veto_used_item.setForeground(self.veto_color)
+            self.left_list_widget.addItem(veto_used_item)
 
         # Add Replacement Nominees item
-        rnoms_item = QListWidgetItem("Replacement Nominees: ")
-        if self.renoms_for_list:
-            rnoms_text = ", ".join([rnom.name for rnom in self.renoms_for_list])
-            rnoms_item.setText(f"Replacement Nominees: {rnoms_text}")
-            rnoms_item.setForeground(self.noms_color)
-        self.left_list_widget.addItem(rnoms_item)
+        if self.renoms_for_list is not None:
+            rnoms_item = QListWidgetItem("Replacement Nominees: ")
+            if self.renoms_for_list:
+                self.print_debug([self.renoms_for_list, self.nominees])
+                if self.renoms_for_list != self.nominees:
+                    rnoms_text = ", ".join([rnom.name for rnom in self.renoms_for_list])
+                    rnoms_item.setText(f"Replacement Nominees: {rnoms_text}")
+                    rnoms_item.setForeground(self.noms_color)
+                else:
+                    rnoms_item.setText(f"Nominees stayed the same.")
+                    rnoms_item.setForeground(self.noms_color)
+            self.left_list_widget.addItem(rnoms_item)
 
         # Add Evicted item
-        evicted_item = QListWidgetItem("Evicted: ")
-        if self.evicted:
-            evicted_item.setText(f"Evicted: {self.evicted.name}")
-            evicted_item.setForeground(self.evicted_color)
-        self.left_list_widget.addItem(evicted_item)
-
-    # Print text to box instead of console
-    def print_text(self, text, nl=True):
-        if "HOH:" in text:
-            self.formatting["HOH:"] = self.hoh_color.name()
-        if self.HOH is not None:
-            self.formatting[self.HOH.name] = self.hoh_color.name()
-        if "is the new Head of Household" in text:
-            self.formatting["is the new Head of Household"] = self.hoh_color.name()
-
-        for nom in self.nominees:
-            self.formatting[nom.name] = self.noms_color.name()
-
-        if "veto holder" in text:
-            self.formatting["veto holder"] = self.veto_color.name()
-        if "veto" in text:
-            self.formatting["veto"] = self.veto_color.name()
-        if self.veto_winner is not None and self.veto_winner.name != self.HOH.name:
-            self.formatting[self.veto_winner.name] = self.veto_color.name()
-
-        if self.evicted:
-            self.formatting[self.evicted.name] = self.evicted_color.name()
-
-        if nl:
-            self.text_box.appendFormattedText(text + "\n", self.formatting)
-        else:
-            self.text_box.appendFormattedText(text, self.formatting)
-
-        if self.print_speed > 0:
-            QTimer.singleShot(int(self.print_speed * 1000), self.enable_button)
+        if self.evicted is not None:
+            evicted_item = QListWidgetItem("Evicted: ")
+            if self.evicted:
+                evicted_item.setText(f"Evicted: {self.evicted.name}")
+                evicted_item.setForeground(self.evicted_color)
+            self.left_list_widget.addItem(evicted_item)
 
     def print_debug(self, text):
         if self.settings.value("DebugMode", True, type=bool):
@@ -479,15 +455,6 @@ class BigBrother(QWidget):
         for hg in self.houseguests:
             self.print_debug([hg.name, hg.impressions])
 
-    def make_formatting(self):
-        self.formatting = {
-            "HOH:": self.hoh_color,
-            "is the new Head of Household": self.hoh_color,
-            # Add other formatting tags and colors here
-        }
-        for hg in self.houseguests:
-            self.formatting[hg.name] = self.no_color
-
     def show_impressions(self):
         # Create matrix if it doesn't exist (happens on reset also)
         self.matrix = ImpressionMatrix(self.houseguests)
@@ -516,7 +483,6 @@ class BigBrother(QWidget):
         self.print_text(f"Week {self.week}:")
 
         if self.week > 1:
-            self.update_evicted()
             self.reset_hgs()
 
         # FOR DEBUG
@@ -530,133 +496,280 @@ class BigBrother(QWidget):
             # Regular game play
             self.next_week_btn.setEnabled(False)
             self.select_HOH()
-            self.set_text_color()
-            self.event_spawner()
+            self.set_text_color_hglw()
+            self.events.event_spawner()
             self.select_noms()
-            self.set_text_color()
-            self.event_spawner()
+            self.set_text_color_hglw()
+            self.events.event_spawner()
             self.play_veto()
-            self.set_text_color()
-            self.event_spawner()
+            self.set_text_color_hglw()
+            self.events.event_spawner()
             self.veto_ceremony()
-            self.set_text_color()
-            self.event_spawner()
+            self.set_text_color_hglw()
+            self.events.event_spawner()
             self.eviction()
-            self.event_spawner()
-            self.set_text_color()
+            self.events.event_spawner()
+            self.set_text_color_hglw()
+            self.text_box.clear()
+            self.summarize_week()
             self.next_week_btn.setEnabled(True)
 
         else:
-            # Finale
-            self.print_text(
-                f"Final 2: {self.houseguests[0].name} and {self.houseguests[1].name}"
-            )
+            self.finale()
+            
+    def finale(self):
+        # Finale
+        self.print_text(
+            f"Final 2: {self.houseguests[0].name} and {self.houseguests[1].name}"
+        )
+        
+        # Disable the "Proceed" and "Forward 1 Week" buttons
+        self.proceed_btn.setEnabled(False)
+        self.next_week_btn.setEnabled(False)
 
-            # Have them plead their case
-            self.print_text(f"{self.houseguests[0].name} pleads their case...")
-            self.print_text(f"{self.houseguests[1].name} pleads their case...")
+        # Increment the season number
+        self.season_num += 1
 
-            # Calculate number of jurors
-            num_jurors = (NUM_PLAYERS // 2) + 1
-            if num_jurors % 2 == 0:
-                num_jurors += 1
+        # Have them plead their case
+        self.print_text(f"{self.houseguests[0].name} pleads their case...")
+        self.print_text(f"{self.houseguests[1].name} pleads their case...")
 
-            # Take the first num_jurors evicted houseguests as jurors
-            jurors = self.evicted_houseguests[-num_jurors:]
+        # Calculate number of jurors
+        num_jurors = (NUM_PLAYERS // 2) + 1
+        if num_jurors % 2 == 0:
+            num_jurors += 1
 
-            votes1 = 0
-            votes2 = 0
+        # Take the first num_jurors evicted houseguests as jurors
+        jurors = self.evicted_houseguests[-num_jurors:]
 
-            # Jury votes (This is just for their dialog before the voting happens)
-            for juror in jurors:
+        votes1 = 0
+        votes2 = 0
 
-                # Juror voting confessional dialog
-                imp1 = juror.impressions[self.houseguests[0].name]
-                imp2 = juror.impressions[self.houseguests[1].name]
+        # Jury votes (This is just for their dialog before the voting happens)
+        for juror in jurors:
 
-                score_diff = abs(imp1 - imp2)
+            # Juror voting confessional dialog
+            imp1 = juror.impressions[self.houseguests[0].name]
+            imp2 = juror.impressions[self.houseguests[1].name]
 
-                if imp1 > imp2:
-                    higher_name = self.houseguests[0].name
-                else:
-                    higher_name = self.houseguests[1].name
+            score_diff = abs(imp1 - imp2)
 
-                if score_diff >= 8 and max(imp1, imp2) == 10:
-                    phrase = random.choice(FINALE_PHRASES[10]).format(name=higher_name)
-                elif score_diff >= 6:
-                    phrase = random.choice(FINALE_PHRASES[8, 9]).format(
-                        name=higher_name
-                    )
-                elif score_diff >= 4:
-                    phrase = random.choice(FINALE_PHRASES[6, 7]).format(
-                        name=higher_name
-                    )
-                elif score_diff >= 2:
-                    phrase = random.choice(FINALE_PHRASES[4, 5]).format(
-                        name=higher_name
-                    )
-                else:
-                    phrase = random.choice(FINALE_PHRASES[2, 3]).format(
-                        name=higher_name
-                    )
+            if imp1 > imp2:
+                higher_name = self.houseguests[0].name
+            else:
+                higher_name = self.houseguests[1].name
 
-                self.print_text(f"{juror.name}: {phrase}")
+            if score_diff >= 8 and max(imp1, imp2) == 10:
+                phrase = random.choice(FINALE_PHRASES[10]).format(name=higher_name)
+            elif score_diff >= 6:
+                phrase = random.choice(FINALE_PHRASES[8, 9]).format(
+                    name=higher_name
+                )
+            elif score_diff >= 4:
+                phrase = random.choice(FINALE_PHRASES[6, 7]).format(
+                    name=higher_name
+                )
+            elif score_diff >= 2:
+                phrase = random.choice(FINALE_PHRASES[4, 5]).format(
+                    name=higher_name
+                )
+            else:
+                phrase = random.choice(FINALE_PHRASES[2, 3]).format(
+                    name=higher_name
+                )
 
-            # Read votes (This is where the votes are actually cast)
-            for juror in jurors:
+            self.print_text(f"{juror.name}: {phrase}")
 
-                imp1 = juror.impressions[self.houseguests[0].name]
-                imp2 = juror.impressions[self.houseguests[1].name]
+        # Read votes (This is where the votes are actually cast)
+        for juror in jurors:
 
-                if imp1 == imp2:
-                    coin_flip = random.choice([0, 1])
-                    if coin_flip == 0:
-                        votedfor = 0
-                    else:
-                        votedfor = 1
-                elif imp1 > imp2:
+            imp1 = juror.impressions[self.houseguests[0].name]
+            imp2 = juror.impressions[self.houseguests[1].name]
+
+            if imp1 == imp2:
+                coin_flip = random.choice([0, 1])
+                if coin_flip == 0:
                     votedfor = 0
                 else:
                     votedfor = 1
-
-                if votedfor == 0:
-                    self.print_text(
-                        f"{juror.name} voted for {self.houseguests[0].name} to win Big Brother!"
-                    )
-                    votes1 += 1
-                else:
-                    self.print_text(
-                        f"{juror.name} voted for {self.houseguests[1].name} to win Big Brother!"
-                    )
-                    votes2 += 1
-
-            if votes1 > votes2:
-                winner = self.houseguests[0]
-                winvotes = votes1
-                runvotes = votes2
-                runner_up = self.houseguests[1]
-            elif votes2 > votes1:
-                winner = self.houseguests[1]
-                runner_up = self.houseguests[0]
-                winvotes = votes2
-                runvotes = votes1
+            elif imp1 > imp2:
+                votedfor = 0
             else:
-                winner = random.choice(self.houseguests)
+                votedfor = 1
 
-            self.print_text(f"{winner.name} wins Big Brother!")
-            # Remove evicted houseguest from the list
-            for i in range(self.houseguest_list_widget.count()):
-                self.print_text(self.houseguest_list_widget.item(i).text())
-                if self.houseguest_list_widget.item(i).text() != winner.name:
-                    row = i
-            self.houseguest_list_widget.takeItem(row)
+            if votedfor == 0:
+                self.print_text(
+                    f"{juror.name} voted for {self.houseguests[0].name} to win Big Brother!"
+                )
+                votes1 += 1
+            else:
+                self.print_text(
+                    f"{juror.name} voted for {self.houseguests[1].name} to win Big Brother!"
+                )
+                votes2 += 1
 
-            # Change button text
-            self.next_week_btn.setText("Next Season")
-            self.end_state = 1
+        if votes1 > votes2:
+            winner = self.houseguests[0]
+            winvotes = votes1
+            runvotes = votes2
+            runner_up = self.houseguests[1]
+        elif votes2 > votes1:
+            winner = self.houseguests[1]
+            runner_up = self.houseguests[0]
+            winvotes = votes2
+            runvotes = votes1
+        else:
+            winner = random.choice(self.houseguests)
 
+        self.print_text(f"{winner.name} wins Big Brother!")
+        # Remove evicted houseguest from the list
+        for i in range(self.houseguest_list_widget.count()):
+            self.print_text(self.houseguest_list_widget.item(i).text())
+            if self.houseguest_list_widget.item(i).text() != winner.name:
+                row = i
+        self.houseguest_list_widget.takeItem(row)
+        
+        # Add winner, their votes, runner up, their votes, AFP to left widget
+        winner_item = QListWidgetItem(f"Winner: {winner.name}")
+        winner_item.setForeground(self.hoh_color)
+        self.left_list_widget.addItem(winner_item)
+
+        winner_votes_item = QListWidgetItem(f"Winner Votes: {winvotes}")
+        winner_votes_item.setForeground(self.hoh_color)
+        self.left_list_widget.addItem(winner_votes_item)
+
+        runner_up_item = QListWidgetItem(f"Runner-Up: {runner_up.name}")
+        runner_up_item.setForeground(self.noms_color)
+        self.left_list_widget.addItem(runner_up_item)
+
+        runner_up_votes_item = QListWidgetItem(f"Runner-Up Votes: {runvotes}")
+        runner_up_votes_item.setForeground(self.noms_color)
+        self.left_list_widget.addItem(runner_up_votes_item)
+
+        # Change button text
+        self.next_week_btn.setText("Next Season")
+        self.end_state = 1
+
+        if self.retain_season:
+            self.season_num += 1
+
+    def proceed(self):
+        if self.step_index == 0:
+            self.next_week_btn.setText("Forward 1 Week")
+            self.next_week_btn.clicked.disconnect()
+            self.next_week_btn.clicked.connect(self.play_week)
+        if self.end_state == 1:
+            self.reset()
+            return
+        if len(self.houseguests) > 2:
+            self.step_by_step_mode = True
+            self.next_step()
+        else:
+            self.finale()
+
+    def next_step(self):
+        if self.step_index == 0:
+            self.text_box.clear()
+            if self.end_state == 1:
+                self.reset()
+                return
+            self.week += 1
+            self.choose_hg_btn.setDisabled(True)
+            tsl = self.title_season_label
             if self.retain_season:
-                self.season_num += 1
+                tsl.setText(f"Season {self.season_num}, Week {self.week}")
+            else:
+                tsl.setText(f"Week {self.week}")
+            self.print_text(f"Week {self.week}:")
+
+            if self.week > 1:
+                self.reset_hgs()
+
+            # FOR DEBUG
+            self.print_debug(
+                f"BEGINNING OF WEEK {self.week}. HOUSEGUESTS: {self.houseguests}"
+            )
+            self.select_HOH()
+            self.set_text_color_hglw()
+            self.events.event_spawner()
+            self.step_index += 1
+            
+        elif self.step_index == 1:
+            self.select_noms()
+            self.set_text_color_hglw()
+            self.events.event_spawner()
+            self.step_index += 1
+            
+        elif self.step_index == 2:
+            self.play_veto()
+            self.set_text_color_hglw()
+            self.events.event_spawner()
+            self.step_index += 1
+            
+        elif self.step_index == 3:
+            self.veto_ceremony()
+            self.events.event_spawner()
+            self.set_text_color_hglw()
+            self.step_index += 1
+            
+        elif self.step_index == 4:
+            self.eviction()
+            self.events.event_spawner()
+            self.set_text_color_hglw()
+            self.next_week_btn.setEnabled(True)
+            self.next_week_btn.setText("Continue to Next Week")
+            self.step_index = 0
+            self.step_by_step_mode = False
+            self.HOH = None
+            self.nominees = None
+            self.veto_winner = None
+            self.used = None
+            self.renoms_for_list = None
+            
+        else:
+            print("Error. self.step_index set to invalid value. Returning to step one.")
+            self.step_index = 0
+
+        if self.step_by_step_mode:
+            if self.step_index == 0:
+                self.next_week_btn.setText("Forward 1 Week")
+            else:
+                self.next_week_btn.setText("Conclude Week")
+                self.next_week_btn.clicked.disconnect()
+                self.next_week_btn.clicked.connect(self.conclude_week)
+            self.next_week_btn.setEnabled(True)
+
+    def conclude_week(self):
+        if self.step_index < 2:
+            self.select_noms()
+            self.events.event_spawner()
+
+        if self.step_index < 3:
+            self.play_veto()
+            self.events.event_spawner()
+
+        if self.step_index < 4:
+            self.veto_ceremony()
+            self.events.event_spawner()
+
+        if self.step_index < 5:
+            self.eviction()
+            self.events.event_spawner()
+            self.set_text_color_hglw()
+
+        self.text_box.clear()
+        self.summarize_week()
+        
+        self.next_week_btn.setText("Forward 1 Week")
+        self.next_week_btn.clicked.disconnect()
+        self.next_week_btn.clicked.connect(self.play_week)
+        
+        self.step_index = 0
+        self.HOH = None
+        self.nominees = None
+        self.veto_winner = None
+        self.used = None
+        self.renoms_for_list = None
 
     def update_evicted(self):
         # Remove evicted houseguest from the list
@@ -665,16 +778,23 @@ class BigBrother(QWidget):
             if self.houseguest_list_widget.item(i).text() == self.evicted.name:
                 row = i
         if row is not None:
+            print("HERE")
             self.houseguest_list_widget.takeItem(row)
         self.houseguests.remove(self.evicted)
         self.evicted = None
 
     def reset_hgs(self):
+        self.update_evicted()
         for hg in self.houseguests:
             hg.HOH = False
             hg.nominee = False
             hg.veto = False
             hg.vetoed = False
+        self.HOH = None
+        self.nominees = None
+        self.veto_winner = None
+        self.used = None 
+        
 
     def select_HOH(self):
         # Choose HOH
@@ -768,68 +888,80 @@ class BigBrother(QWidget):
         return potential_players
 
     def veto_ceremony(self):
-        used = False
+        self.used = False
         if self.veto_winner is not None:
-            # If veto winner is also a nominee, force them to use it on self
-            if self.veto_winner in self.nominees:
+            # If there are 4 houseguests remaining and the veto winner is not HOH or nominated
+            if (
+                len(self.houseguests) == 4
+                and self.veto_winner not in self.nominees
+                and self.veto_winner != self.HOH
+            ):
                 self.print_text(
-                    f"{self.veto_winner.name} has automatically used the Veto on themselves."
+                    f"{self.veto_winner.name} has won the Power of Veto, but cannot use it."
                 )
-                used = True
-                nominee_saved = self.veto_winner
-                nominee_saved.vetoed = True
-                self.nominees.remove(nominee_saved)
-                self.print_debug(f"VETO USED ON: {self.veto_winner.name}")
             else:
-                veto_used = random.choice([True, False])
-
-                if veto_used:
-                    used = True
-                    nominee_saved = random.choice(self.nominees)
+                # If veto winner is also a nominee, force them to use it on self
+                if self.veto_winner in self.nominees:
                     self.print_text(
-                        f"{self.veto_winner} has chosen to use the Power of Veto on {nominee_saved.name}."
+                        f"{self.veto_winner.name} has automatically used the Veto on themselves."
                     )
-                    self.print_debug(f"VETO USED ON: {nominee_saved.name}")
-
-                    self.nominees.remove(nominee_saved)
-                    nominee_saved.vetoed = True
-
+                    self.used = True
+                    self.nominee_saved = self.veto_winner
+                    self.nominee_saved.vetoed = True
+                    self.nominees.remove(self.nominee_saved)
+                    self.print_debug(f"VETO USED ON: {self.veto_winner.name}")
                 else:
-                    self.print_text(
-                        f"{self.veto_winner} has chosen not to use the Power of Veto."
+                    veto_used = random.choice([True, False])
+
+                    if veto_used:
+                        self.used = True
+                        self.nominee_saved = random.choice(self.nominees)
+                        self.print_text(
+                            f"{self.veto_winner} has chosen to use the Power of Veto on {self.nominee_saved.name}."
+                        )
+                        self.print_debug(f"VETO USED ON: {self.nominee_saved.name}")
+
+                        self.nominees.remove(self.nominee_saved)
+                        self.nominee_saved.vetoed = True
+
+                    else:
+                        self.print_text(
+                            f"{self.veto_winner} has chosen not to use the Power of Veto."
+                        )
+
+                if self.used:
+                    # Replacement nominations
+                    replacement_nom = None
+                    potential_replacements = [
+                        hg
+                        for hg in self.houseguests
+                        if hg
+                        not in [
+                            self.HOH,
+                            self.veto_winner,
+                            self.nominee_saved,
+                            self.nominees[0],
+                        ]
+                    ]
+                    self.print_debug(
+                        f"POTENTIAL REPLACEMENT NOMINEES: {potential_replacements}"
                     )
 
-            if used:
-                # Replacement nominations
-                replacement_nom = None
-                potential_replacements = [
-                    hg
-                    for hg in self.houseguests
-                    if hg
-                    not in [self.HOH, self.veto_winner, nominee_saved, self.nominees[0]]
-                ]
-                self.print_debug(
-                    f"POTENTIAL REPLACEMENT NOMINEES: {potential_replacements}"
-                )
+                    if self.HOH.target and self.HOH.target in potential_replacements:
+                        replacement_nom = self.HOH.target
+                    elif len(self.HOH.alliances) > 0:
+                        for hg in potential_replacements:
+                            if all(a not in self.HOH.alliances for a in hg.alliances):
+                                replacement_nom = hg
+                                break
 
-                if self.HOH.target and self.HOH.target in potential_replacements:
-                    replacement_nom = self.HOH.target
-                elif len(self.HOH.alliances) > 0:
-                    for hg in potential_replacements:
-                        if all(a not in self.HOH.alliances for a in hg.alliances):
-                            replacement_nom = hg
-                            break
+                    if replacement_nom == None:
+                        replacement_nom = random.choice(potential_replacements)
 
-                if replacement_nom == None:
-                    replacement_nom = random.choice(potential_replacements)
-
-                self.nominees.append(replacement_nom)
-                self.print_text(
-                    f"{self.HOH.name} has nominated {replacement_nom.name} as the replacement nominee."
-                )
-
-        else:
-            pass
+                    self.nominees.append(replacement_nom)
+                    self.print_text(
+                        f"{self.HOH.name} has nominated {replacement_nom.name} as the replacement nominee."
+                    )
 
         self.renoms_for_list = deepcopy(self.nominees)
         if self.renoms_for_list == self.noms_for_list:
@@ -858,10 +990,13 @@ class BigBrother(QWidget):
 
         evicted_name = max(votes, key=list(votes.values()).count)
         evicted = next(hg for hg in self.houseguests if hg.name == evicted_name)
-        self.print_text(f"{evicted.name} has been evicted from the Big Brother house.")
-        self.evicted_houseguests.append(evicted)
         # Update evicted houseguest
         self.evicted = evicted
+        statement = " has been evicted from the Big Brother house."
+        self.formatting[statement] = self.evict_statement_color
+        self.print_text(f"{evicted.name}{statement}")
+        self.evicted_houseguests.append(evicted)
+        
 
         # Update targets after eviction
         for hg in self.houseguests:
@@ -903,12 +1038,19 @@ class BigBrother(QWidget):
     # RESET ========================================
     def reset(self):
         self.houseguests = []
-        self.houseguest_list_widget.clear()
         self.evicted_houseguests = []
         self.prev_HOH = None
         self.matrix = None
-        self.end_state = 0  # Add this line
+        self.end_state = 0
         self.week = 0
+
+        # Clear roles (used by UI)
+        self.HOH = None
+        self.nominees = None
+        self.veto_winner = None
+        self.used = None
+        self.evicted = None
+        self.renoms_for_list = None
 
         # Clear houseguest list
         self.houseguest_list_widget.clear()
@@ -926,6 +1068,14 @@ class BigBrother(QWidget):
 
         # Reset button text
         self.next_week_btn.setText("Continue")
+        self.introduce_players()
+        
+        # Enable buttons
+        self.proceed_btn.setEnabled(True)
+        self.next_week_btn.setEnabled(True)
+
+        # Reset button text
+        self.next_week_btn.setText("Forward 1 Week")
         self.introduce_players()
 
         tsl = self.title_season_label
@@ -979,6 +1129,11 @@ class BigBrother(QWidget):
         print_speed_presets.currentIndexChanged.connect(toggle_custom_speed)
         print_speed_custom.setDisabled(True)
 
+        step_by_step_cb = QCheckBox("Step-by-Step Mode")
+        step_by_step_cb.setChecked(
+            self.settings.value("StepByStepMode", False, type=bool)
+        )
+
         debug_mode_cb = QCheckBox("Debug Mode")
         debug_mode_cb.setChecked(self.settings.value("DebugMode", False, type=bool))
 
@@ -1001,8 +1156,10 @@ class BigBrother(QWidget):
         layout.addWidget(print_speed_presets)
         layout.addWidget(print_speed_custom)
         # Add other widgets...
-        layout.addWidget(button_box)
+
+        layout.addWidget(step_by_step_cb)
         layout.addWidget(debug_mode_cb)
+        layout.addWidget(button_box)
 
         dark_palette = self.make_dark_palette()
 
@@ -1014,9 +1171,11 @@ class BigBrother(QWidget):
             custom_speed = print_speed_custom.value()
             self.settings.setValue("NUM_PLAYERS", num_players_spinner.value())
             self.settings.setValue("RetainSeason", retain_season_cb.isChecked())
+            self.settings.setValue("StepByStepMode", step_by_step_cb.isChecked())
             self.update_print_speed(ind, custom_speed)
             self.settings.setValue("DebugMode", debug_mode_cb.isChecked())
             self.settings.sync()
+            self.step_by_step_mode = step_by_step_cb.isChecked()
 
             # Save other settings...
 
@@ -1084,6 +1243,10 @@ class BigBrother(QWidget):
                 "Egg Heads",
                 "Spelling Bee",
             ]
+            hoh_text = f"The houseguests compete in the {random.choice(comps)} HOH competition."
+            self.formatting[hoh_text] = self.hoh_color
+            self.print_text(hoh_text)
+
         elif v == "Veto":
             comps = [
                 "Block the Veto",
@@ -1097,19 +1260,14 @@ class BigBrother(QWidget):
                 "Egg on Your Face",
                 "Spelling Veto",
             ]
+            veto_text = f"The houseguests compete in the {random.choice(comps)} veto competition."
+            self.formatting[veto_text] = self.veto_color
+            self.print_text(veto_text)
+
         else:
             return
 
-        self.print_text(
-            "The houseguests compete in the " + random.choice(comps) + " competition."
-        )
-
-        for hg1 in self.houseguests:
-            for hg2 in self.houseguests:
-                if hg1 != hg2:
-                    adjustment = random.randint(-1, 1)
-                    hg1.impressions[hg2.name] += adjustment
-                    hg2.impressions[hg1.name] += adjustment
+        self.events.imp_adjustment()
 
     def edit_hg_name(self, item):
         # Get houseguest object
@@ -1128,138 +1286,6 @@ class BigBrother(QWidget):
             for h in self.houseguests:
                 if name in h.impressions:
                     h.impressions[new_name] = h.impressions.pop(name)
-
-    # EVENTS ==================================================================
-    def event_spawner(self, variety=None):
-        if variety is not None:
-            self.houseguests = self.comp(self.houseguests, variety)
-        else:
-            # Random events
-            for _ in range(random.randint(0, MAX_EVENTS)):
-                event_index = random.randint(0, 3)
-                if event_index == 0 and len(self.houseguests) >= 3:
-                    hg1, hg2, hg3 = random.sample(self.houseguests, 3)
-                    self.event_1(hg1, hg2, hg3)
-                elif event_index == 1:
-                    hg1, hg2 = random.sample(self.houseguests, 2)
-                    self.event_2(hg1, hg2)
-                elif event_index == 2 and len(self.houseguests) >= 2:
-                    hg1, hg2 = random.sample(self.houseguests, 2)
-                    if len(hg1.alliances) > 0:
-                        self.event_3(hg1, hg2)
-                    elif len(self.houseguests) >= 6:
-                        self.event_5(hg1)
-                    else:
-                        self.event_4(hg1, hg2)
-                else:
-                    hg1, hg2 = random.sample(self.houseguests, 2)
-                    self.event_4(hg1, hg2)
-
-    def event_1(self, hg1, hg2, hg3):
-        if hg1.manipulativeness >= random.randint(0, hg2.emotionality):
-            hg2.target = hg3.name
-            self.print_text(f"{hg2.name} was swayed!")
-
-        # Opinion changes
-        if hg1.impressions[hg3.name] >= 5:
-            hg1.impressions[hg3.name] = min(10, hg1.impressions[hg3.name] + 1)
-            hg2.impressions[hg3.name] = max(0, min(10, hg2.impressions[hg3.name] + 2))
-        else:
-            hg1.impressions[hg3.name] = max(0, hg1.impressions[hg3.name] - 1)
-            hg2.impressions[hg3.name] = max(0, hg2.impressions[hg3.name] - 2)
-
-        self.print_text(f"{hg1.name} pulls {hg2.name} aside to talk about {hg3.name}.")
-
-    def event_2(self, hg1, hg2):
-        if hg1.friendliness < hg2.emotionality:
-            hg1.target = hg2.name
-            hg2.target = hg1.name
-            self.print_text(f"{hg1.name} and {hg2.name} were swayed!")
-
-        # Opinion changes
-        if random.random() < 0.8:
-            hg1.impressions[hg2.name] = max(0, hg1.impressions[hg2.name] - 3)
-            hg2.impressions[hg1.name] = max(0, hg2.impressions[hg1.name] - 3)
-
-        topic = random.choice(
-            [
-                "the dishes",
-                "who ate the last slice of pizza",
-                "who flirts too much",
-                "who snores",
-            ]
-        )
-        self.print_text(f"{hg1.name} gets in a fight with {hg2.name} over {topic}!")
-
-    def event_3(self, hg1, hg2):
-        pick = None
-
-        potential_alliances = []
-        for alliance_name in hg1.alliances:
-            alliance = self.alliances[alliance_name]
-            if hg2 not in alliance.members:
-                potential_alliances.append(alliance)
-
-        if potential_alliances:
-            alliance = random.choice(potential_alliances)
-
-        if pick != None:
-            self.print_text(
-                f"{hg1.name} makes plans with {alliance.name} to target {hg2.name}."
-            )
-
-            for member in alliance.members:
-                if member.name in self.houseguests:
-                    if member.loyalty > hg1.manipulativeness:
-                        member.target = hg2.name
-                        self.print_debug("EVENT 3")
-                        self.print_debug(f"HGS: {self.houseguests}")
-                        self.print_debug(
-                            f"{member.name}'S IMPRESSIONS: {member.impressions}"
-                        )
-                        member.impressions[hg1.name] += 2
-                        member.impressions[hg2.name] -= random.randint(2, 4)
-                        self.check_impressions(member.impressions, hg1.name)
-                        self.check_impressions(member.impressions, hg2.name)
-                        self.print_text(f"{member.name} was convinced.")
-
-    def event_4(self, hg1, hg2):
-        # Opinion changes
-        hg1.impressions[hg2.name] = min(
-            10, hg1.impressions[hg2.name] + random.randint(0, 3)
-        )
-        hg2.impressions[hg1.name] = min(
-            10, hg2.impressions[hg1.name] + random.randint(0, 3)
-        )
-        self.print_text(f"{hg1.name} has a casual conversation with {hg2.name}.")
-
-    import re
-
-    def event_5(self, hg1):
-        alliance_size = random.randint(2, len(self.houseguests) // 2)
-        alliance_members = random.sample(self.houseguests, alliance_size)
-
-        alliance_name = self.generate_alliance_name(alliance_members)
-        alliance = Alliance(alliance_name)
-
-        for member in alliance_members:
-            alliance.add_member(member)
-            member.join_alliance(alliance)
-
-        self.alliances[alliance_name] = alliance
-
-        self.print_text(
-            f"{alliance_name} alliance forms between {', '.join([member.name for member in alliance_members])}."
-        )
-
-    def generate_alliance_name(self, members):
-        if random.random() < 0.3:
-            return random.choice(["The Leftovers", "The Outsiders", "The Misfits"])
-
-        names = [
-            re.sub(r"([A-Z])", r" \1", member.name[0]).split() for member in members
-        ]
-        return "".join([random.choice(name) for name in names]).upper()
 
     def check_impressions(self, impr, hgname):
         if impr[hgname] < 0:
@@ -1291,6 +1317,37 @@ class BigBrother(QWidget):
         # Set new widths
         new_col3_width = col3_width + added_width
         self.left_widget.setFixedWidth(int(new_col3_width))
+        
+    def summarize_week(self):
+        summary = f"WEEK SUMMARY:\n"
+        
+        if self.HOH:
+            summary += f"- HOH: {self.HOH.name}\n"
+        
+        if self.nominees:
+            summary += f"- Nominees: {', '.join([n.name for n in self.nominees])}\n"
+            
+        if self.veto_winner:
+            summary += f"- Veto Winner: {self.veto_winner.name}\n"
+            
+        if self.used: 
+            summary += f"- Veto Used: {self.used}\n"
+            
+        if self.renoms_for_list:
+            if self.renoms_for_list != self.nominees:
+                summary += f"- Replacement Nominees: {', '.join([r.name for r in self.renoms_for_list])}\n"
+            
+        if self.evicted:
+            summary += f"- Evicted: {self.evicted.name}\n"
+            
+        # Print summary 
+        self.print_text(summary)
+        
+    def print_text(self, text, nl=True):
+        self.utility.print_text(text, nl)
+
+    def make_formatting(self):
+        self.utility.make_formatting()
 
 
 class NoFocusDelegate(QStyledItemDelegate):
