@@ -94,3 +94,29 @@ fight_topics = [
     "who is the biggest passive-aggressive",
     "who is the biggest gossip"
 ]
+
+HOH_COMPS = [
+                "Flip the House",
+                "Majority Rules",
+                "Question the Quack",
+                "Counting Sheep",
+                "True or False",
+                "Memory Lane",
+                "Slip 'n Slide",
+                "Red Light, Green Light",
+                "Egg Heads",
+                "Spelling Bee",
+            ]
+
+VETO_COMPS = [
+                "Block the Veto",
+                "Knight Moves",
+                "Cry Me a Veto",
+                "Counting Votes",
+                "Fact or Fiction",
+                "Photographic Memory",
+                "Slip 'n Veto",
+                "Red Veto, Green Veto",
+                "Egg on Your Face",
+                "Spelling Veto",
+            ]

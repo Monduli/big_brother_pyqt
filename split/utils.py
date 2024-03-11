@@ -75,18 +75,18 @@ class Utility():
             n = hg.name
             self.formatting[n] = self.name_color  # Reset to default text color
             if self.HOH is not None and self.HOH.name == n:
-                print(f"Setting {n} to hoh_color")
+                self.bb.print_debug(f"Setting {n} to hoh_color")
                 self.formatting[n] = self.hoh_color
             if self.veto_winner is not None and self.veto_winner.name == n:
-                print(f"Setting {n} to veto_color")
+                self.bb.print_debug(f"Setting {n} to veto_color")
                 self.formatting[n] = self.veto_color
             if self.nominees and self.formatting[n] != self.veto_color and self.formatting[n] != self.evicted_color:
                 for p in self.nominees:
                     if p.name == n:
-                        print(f"Setting {n} to nom_color")
+                        self.bb.print_debug(f"Setting {n} to nom_color")
                         self.formatting[n] = self.noms_color
             if self.evicted is not None and self.evicted.name == n:
-                print(f"Setting {n} to evicted_color")
+                self.bb.print_debug(f"Setting {n} to evicted_color")
                 self.formatting[n] = self.evicted_color
                 
     def set_selves(self):
@@ -100,7 +100,7 @@ class Utility():
                     
     def get_name_with_format(self, char):
         for name, format in self.formatting.items():
-            print(name, format, self.no_color)
+            self.bb.print_debug([name, format, self.no_color])
             if name.startswith(char) and format is not self.no_color:
                 return name, format
         return None

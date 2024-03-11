@@ -4,33 +4,37 @@ import re
 from alliance import Alliance
 from bberror import BBError
 from constants import *
+from PyQt5.QtCore import QSettings, Qt, QTimer
+from PyQt5.QtGui import QColor, QPalette, QTextCharFormat, QTextCursor
+from PyQt5.QtWidgets import (QAction, QApplication, QCheckBox, QColorDialog,
+                             QComboBox, QDialog, QDialogButtonBox,
+                             QDoubleSpinBox, QGridLayout, QHBoxLayout, QLabel,
+                             QLineEdit, QListWidget, QListWidgetItem, QMenuBar,
+                             QPushButton, QSizePolicy, QSpacerItem, QSpinBox,
+                             QStyle, QStyledItemDelegate, QTextEdit,
+                             QVBoxLayout, QWidget)
 
 
 class Events():
     
     def __init__(self, big_brother):
         self.bb = big_brother
-        
+        self.added_info = None
         self.houseguests = self.bb.houseguests
 
-    # EVENTS ==================================================================
-    def event_spawner(self, variety=None):
+    def event_spawner(self):
         self.houseguests = self.bb.houseguests
-        if len(self.houseguests) > 3:
+        if len(self.houseguests) >= 2:
             try:
                 self.bb.make_formatting()
-                if variety is not None:
-                    self.comp(self.houseguests, variety)
-                else:
-                    # Random events
-                    for _ in range(random.randint(0, MAX_EVENTS)):
-                        potential_hgs = [hg for hg in self.houseguests if hg not in self.bb.evicted_houseguests] 
-                        print(potential_hgs) 
-                        
-                        # TODO: LINE CAUSING PROBLEMS
+                # Random events
+                for _ in range(random.randint(0, MAX_EVENTS)):
+                    potential_hgs = [hg for hg in self.houseguests if hg not in self.bb.evicted_houseguests]
+
+                    if len(potential_hgs) >= 3:
                         hg1, hg2, hg3 = random.sample(potential_hgs, 3)
-                        
-                        event_index = random.randint(0, 3)
+
+                        event_index = random.randint(0, 8)
                         if event_index == 0 and len(self.houseguests) >= 3:
                             self.event_1(hg1, hg2, hg3)
                         elif event_index == 1:
@@ -39,10 +43,22 @@ class Events():
                             self.event_3(hg1, hg2)
                         elif event_index == 3 and len(self.houseguests) >= 4:
                             self.event_5(hg1)
-                        else:
-                            self.event_4(hg1, hg2)
+                        elif event_index == 4 and len(self.houseguests) >= 2:
+                            self.showmance(hg1, hg2)
+                        elif event_index == 5 and len(self.houseguests) >= 3 and len(hg1.alliances) > 0 and len(hg2.alliances) > 0:
+                            self.alliance_betrayal(hg1, hg2, hg3)
+                        elif event_index == 6 and len(hg1.alliances) > 0:
+                            alliance = random.choice(list(self.bb.alliances.values()))
+                            self.alliance_meeting(alliance)
+                        elif event_index == 7 and len(self.houseguests) >= 2:
+                            self.save_from_the_block(hg1, hg2)
+                        elif event_index == 8 and len(self.houseguests) >= 2:
+                            self.bond_over_interest(hg1, hg2)
+                    else:
+                        hg1, hg2 = random.sample(potential_hgs, 2)
+                        self.event_4(hg1, hg2)
             except Exception as e:
-                raise BBError(e, self.bb) from e
+                raise BBError(e, self.bb, self.added_info) from e
 
     def event_1(self, hg1, hg2, hg3):
         # Player pulls aside another player to tell them to target third player.
@@ -144,6 +160,49 @@ class Events():
         self.bb.print_text(
             f"{alliance_name} alliance forms between {', '.join([member.name for member in alliance_members])}."
         )
+        
+    def showmance(self, hg1, hg2):
+        # Two houseguests (hg1 and hg2) develop a romantic relationship, or "showmance".
+        self.bb.print_text(f"{hg1.name} and {hg2.name} have developed a showmance!")
+        self.swayed_event(hg1, hg2, 3)
+        self.swayed_event(hg2, hg1, 3)
+        self.bb.print_text(f"The two lovebirds are now inseparable!")
+
+        # Add the showmance to the list
+        self.bb.showmances.append((hg1, hg2))
+        
+    def alliance_betrayal(self, hg1, hg2, hg3):
+       # One houseguest (hg1) betrays their alliance member (hg2) by telling another player (hg3) to target them.
+       self.bb.print_text(f"{hg1.name} betrays their alliance member {hg2.name} by telling {hg3.name} to target them.")
+       if hg1.manipulativeness >= random.randint(0, hg3.emotionality):
+           hg3.target = hg2.name
+           self.swayed_event(hg1, hg3)
+           self.unswayed_event(hg1, hg2)
+           self.bb.print_text(f"{hg3.name} was convinced to target {hg2.name}.")
+       else:
+           self.unswayed_event(hg1, hg3)
+           self.bb.print_text(f"{hg3.name} was not convinced to target {hg2.name}.")
+           
+    def alliance_meeting(self, alliance):
+        self.bb.print_text(f"The {alliance.name} alliance holds a meeting to discuss their strategy.")
+        for member in alliance.members:
+            if member in self.houseguests:
+                self.swayed_event(member, random.choice(alliance.members))
+                
+    def save_from_the_block(self, hg1, hg2):
+        shared_alliances = list(set(hg1.alliances) & set(hg2.alliances))
+        if shared_alliances:
+            alliance = random.choice(shared_alliances)
+            self.bb.print_text(f"{hg1.name} saves {hg2.name} from eviction, strengthening their bond within the {alliance} alliance.")
+            self.swayed_event(hg1, hg2, 3)
+            self.swayed_event(hg2, hg1, 3)
+            
+    def bond_over_interest(self, hg1, hg2):
+        interests = ["cooking", "music", "sports", "movies", "fashion"]
+        shared_interest = random.choice(interests)
+        self.bb.print_text(f"{hg1.name} and {hg2.name} bond over their shared interest in {shared_interest}.")
+        self.swayed_event(hg1, hg2, 2)
+        self.swayed_event(hg2, hg1, 2)
 
     def swayed_event(self, hg, target, strength=None, debug=True):
         self.bb.make_formatting()
@@ -151,6 +210,7 @@ class Events():
             to_add = strength
         else:
             to_add = random.randint(1, 2)
+        self.added_info = hg.impressions.keys()
         new = hg.impressions[target.name] + to_add
         adj = min(10, new)
         hg.impressions[target.name] = max(1, adj)
