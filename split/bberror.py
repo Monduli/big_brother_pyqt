@@ -29,7 +29,8 @@ class BBError(Exception):
             error_message += f"\nError occurred while getting the original exception type: {str(e)}\n"
             
         if isinstance(self.original_exception, KeyError) and self.added_info:
-            error_message += f"Dictionary given: {self.added_info}\n" 
+            error_message += f"Owner of impressions: {self.added_info[0]}\n"
+            error_message += f"Dictionary given: {self.added_info[1]}\n" 
         else:
             error_message += "\n"
 

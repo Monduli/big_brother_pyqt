@@ -22,7 +22,7 @@ class Events():
         self.added_info = None
         self.houseguests = self.bb.houseguests
 
-    def event_spawner(self):
+    def event_spawner(self, ps=False):
         self.houseguests = self.bb.houseguests
         if len(self.houseguests) >= 2:
             try:
@@ -30,6 +30,10 @@ class Events():
                 # Random events
                 for _ in range(random.randint(0, MAX_EVENTS)):
                     potential_hgs = [hg for hg in self.houseguests if hg not in self.bb.evicted_houseguests]
+
+                    if ps:
+                        pass
+                        #pre season events
 
                     if len(potential_hgs) >= 3:
                         hg1, hg2, hg3 = random.sample(potential_hgs, 3)
@@ -59,6 +63,71 @@ class Events():
                         self.event_4(hg1, hg2)
             except Exception as e:
                 raise BBError(e, self.bb, self.added_info) from e
+            
+    def comp(self, v):
+        if v == "HOH":
+            comp_name = random.choice(HOH_COMPS)[0]
+            hoh_text = f"The houseguests compete in the {comp_name} HOH competition."
+            self.bb.formatting[hoh_text] = self.bb.hoh_color
+            self.bb.print_text(hoh_text)
+
+            # Simulate the competition
+            participants = [hg for hg in self.bb.houseguests if hg != self.bb.prev_HOH]
+            random.shuffle(participants)
+            winner = None
+
+            for i in range(len(participants)):
+                houseguest = participants[i]
+                if i == len(participants) - 1:
+                    winner = houseguest
+                    self.bb.print_text(f"{houseguest} wins the {comp_name} HOH competition!")
+                else:
+                    self.bb.print_text(f"{houseguest} is out of the competition.", False)
+
+            return winner
+
+        elif v == "Veto":
+            comp_name = random.choice(VETO_COMPS)[0]
+            veto_text = f"The houseguests compete in the {comp_name} veto competition."
+            self.bb.formatting[veto_text] = self.bb.veto_color
+            self.bb.print_text(veto_text)
+            
+            # Select participants for the veto competition
+            participants = [self.bb.HOH] + self.bb.nominees
+            remaining_houseguests = [hg for hg in self.bb.houseguests if hg not in participants]
+            num_random_players = 3
+            houseguest_choice_drawn = False
+
+            while len(participants) < 6 and len(remaining_houseguests) > 0:
+                if not houseguest_choice_drawn and random.random() < 1 / (len(self.bb.houseguests) - len(participants) + 1):
+                    chooser = random.choice(participants)
+                    chosen_houseguest = max(remaining_houseguests, key=lambda hg: hg.impressions[chooser.name])
+                    participants.append(chosen_houseguest)
+                    remaining_houseguests.remove(chosen_houseguest)
+                    self.bb.print_text(f"{chooser} draws houseguest choice and selects {chosen_houseguest} to play in the veto competition.")
+                    houseguest_choice_drawn = True
+                else:
+                    random_player = random.choice(remaining_houseguests)
+                    participants.append(random_player)
+                    remaining_houseguests.remove(random_player)
+                    self.bb.print_text(f"{random_player} is randomly selected to play in the veto competition.")
+
+            # Simulate the competition
+            random.shuffle(participants)
+            winner = None
+
+            for i in range(len(participants)):
+                houseguest = participants[i]
+                if i == len(participants) - 1:
+                    winner = houseguest
+                    self.bb.print_text(f"{houseguest} wins the {comp_name} veto competition!")
+                else:
+                    self.bb.print_text(f"{houseguest} is out of the competition.")
+
+            return winner
+
+        else:
+            return None
 
     def event_1(self, hg1, hg2, hg3):
         # Player pulls aside another player to tell them to target third player.
@@ -187,7 +256,8 @@ class Events():
         self.bb.print_text(f"The {alliance.name} alliance holds a meeting to discuss their strategy.")
         for member in alliance.members:
             if member in self.houseguests:
-                self.swayed_event(member, random.choice(alliance.members))
+                other_member = random.choice([m for m in alliance.members if m != member])
+                self.swayed_event(member, other_member)
                 
     def save_from_the_block(self, hg1, hg2):
         shared_alliances = list(set(hg1.alliances) & set(hg2.alliances))
@@ -210,7 +280,7 @@ class Events():
             to_add = strength
         else:
             to_add = random.randint(1, 2)
-        self.added_info = hg.impressions.keys()
+        self.added_info = (hg, hg.impressions.keys())
         new = hg.impressions[target.name] + to_add
         adj = min(10, new)
         hg.impressions[target.name] = max(1, adj)

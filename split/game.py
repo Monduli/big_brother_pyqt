@@ -23,14 +23,45 @@ from PyQt5.QtWidgets import (QAction, QApplication, QCheckBox, QColorDialog,
                              QVBoxLayout, QWidget, QMainWindow)
 from utils import Utility
 
+#### TODO:
+# - Impressions dictionary crashes randomly. New BBError should mitigate the mystery somewhat now.
+
 DEBUG_MODE = False
 
 class BigBrother(QMainWindow):
 
-    def __init__(self):
+    def __init__(self, houseguests=None):
         super().__init__()
         self.setWindowTitle("Big Brother (US) Simulator")
+        
+        self.initVariables()
+        self.lmode = False
+        if houseguests:
+            self.lmode = True
+        self.create_players(houseguests)
+        self.do_impressions()
+        self.initUI()
+        self.utility = Utility(self)
+        self.events = Events(self)
+        
+        self.introduce_players()
+        
+    def initVariables(self):
+        # Game settings
         self.num_players = NUM_PLAYERS
+        self.settings = QSettings("Danco", "BBQT")
+        self.debug_mode = DEBUG_MODE
+        self.debug_impressions = True
+        self.print_speed = 0.8
+        self.step_index = 0
+        self.continuous_play = False
+
+        # Game state variables
+        self.season_num = 1
+        self.week = 0
+        self.end_state = 0
+
+        # Houseguests and eviction-related variables
         self.houseguests = []
         self.evicted_houseguests = []
         self.HOH = None
@@ -39,29 +70,18 @@ class BigBrother(QMainWindow):
         self.evicted = None
         self.prev_HOH = None
         self.used = None
-        self.end_state = 0
-        self.events = []  # Initialize a list to store events
-        self.alliances = {}  # Initialize a dictionary to store alliances
-        self.settings = QSettings("Danco", "BBQT")
-        self.num_players = NUM_PLAYERS
-        self.print_speed = 0.8
-        self.season_num = 1
-        self.chosen_hg = None
-        self.clicked_hg = None
-        self.week = 0
         self.noms_for_list = None
         self.renoms_for_list = None
-        self.debug_mode = DEBUG_MODE
-        self.debug_impressions = True
-        self.step_index = 0
+
+        # UI-related variables
+        self.chosen_hg = None
+        self.clicked_hg = None
         self.formatting = {}
-        self.create_players()
-        self.do_impressions()
-        self.initUI()
-        self.utility = Utility(self)
-        self.events = Events(self)
+
+        # Game mechanics variables
+        self.events = []  # Initialize a list to store events
+        self.alliances = {}  # Initialize a dictionary to store alliances
         self.showmances = []
-        self.introduce_players()
 
     def initUI(self):
         # Create the QListWidget and add all houseguests
@@ -73,7 +93,7 @@ class BigBrother(QMainWindow):
         self.noms_color = QColor("#6A5ACD")  # Slate Blue
         self.veto_color = QColor("#FFA500")  # Orange
         self.replacement_noms_color = QColor("#1A1ABB")  #
-        self.evicted_color = QColor("#FFEBEB")  # Purple
+        self.evicted_color = QColor("#FF69B4")  # Purple
         self.no_color = QColor("#FFFFFF")
         self.imp_color = QColor("#FA00B3")
         self.name_color = QColor("#00FF00")
@@ -147,9 +167,7 @@ class BigBrother(QMainWindow):
         file_menu.addAction(reset_action)
 
         preferences_action = QAction("Preferences...", self)
-        preferences_action.triggered.connect(
-            self.show_preferences
-        )  # Implement this method
+        preferences_action.triggered.connect(self.show_preferences)
         file_menu.addAction(preferences_action)
 
         exit_action = QAction("Exit", self)
@@ -166,6 +184,15 @@ class BigBrother(QMainWindow):
 
         self.play_continuously_btn = QPushButton("Play Continuously (Debug)")
         self.play_continuously_btn.clicked.connect(self.play_continuously)
+        
+        self.stop_continuous_btn = QPushButton("Stop Continuous Play")
+        self.stop_continuous_btn.setDisabled(True)
+        self.stop_continuous_btn.clicked.connect(self.stop_continuous_play)
+        
+        cont_debug_buttons = QHBoxLayout()
+        
+        cont_debug_buttons.addWidget(self.play_continuously_btn)
+        cont_debug_buttons.addWidget(self.stop_continuous_btn)
 
         # Add "Impressions" button
         self.impressions_btn = QPushButton("Impressions")
@@ -213,7 +240,7 @@ class BigBrother(QMainWindow):
         button_layout.addWidget(self.proceed_btn)
         button_layout.addWidget(self.next_week_btn)
         button_layout.addWidget(self.reset_btn)
-        button_layout.addWidget(self.play_continuously_btn)
+        button_layout.addLayout(cont_debug_buttons)
         
         # Add the buttons to the layout
         
@@ -229,7 +256,7 @@ class BigBrother(QMainWindow):
         overall.addLayout(layout)
         overall.addLayout(button_layout)
 
-        self.setLayout(overall)
+        #self.setLayout(overall)
 
         self.dark_style_sheet("self")
 
@@ -240,6 +267,15 @@ class BigBrother(QMainWindow):
 
         self.setPalette(dark_palette)
         self.show()
+        
+    def pre_season_introduction(self):
+        self.print_text("Welcome to the Big Brother house! The houseguests are about to meet each other for the first time.")
+
+        # Simulate 20-30 interactions
+        for _ in range(20):
+            self.events.event_spawner(pre_season=True)
+
+        self.print_text("The first week is about to begin!")
 
     def store_clicked_hg(self, item):
         self.clicked_hg = item.text()
@@ -273,6 +309,11 @@ class BigBrother(QMainWindow):
                     border: 1px solid #555555;
                     padding: 5px;
                     border-radius: 5px;
+                }
+                QPushButton:disabled {
+                    background-color: #151515;
+                    color: #444444;
+                    border: 1px solid #222222;
                 }
                 QPushButton:hover {
                     background-color: #3D3D3D;
@@ -314,11 +355,43 @@ class BigBrother(QMainWindow):
             )
 
     def play_continuously(self):
+        self.continuous_play = True  # Set the flag to True
         try:
-            while True:  # While game not over
+            while self.continuous_play:
+                self.choose_hg_btn.setDisabled(True)
+                self.impressions_btn.setDisabled(True)
+                self.showmances_btn.setDisabled(True)
+                self.alliances_btn.setDisabled(True)
+                self.proceed_btn.setDisabled(True)
+                self.next_week_btn.setDisabled(True)
+                self.reset_btn.setDisabled(True)
+                self.stop_continuous_btn.setDisabled(False)  # Enable "Stop Continuous Play"
                 self.play_week()
+                self.set_text_color_hglw()
+                self.text_box.clear()
+                self.summarize_week()
+                QApplication.processEvents()
         except Exception as e:
             raise BBError(e, self) from e
+        finally:
+            self.continuous_play = False  # Reset the flag to False
+            
+    def stop_continuous_play(self):
+        self.continuous_play = False  # Set the flag to False to stop the loop
+
+        # Re-enable buttons
+        self.choose_hg_btn.setDisabled(False)
+        self.impressions_btn.setDisabled(False)
+        self.showmances_btn.setDisabled(False)
+        self.alliances_btn.setDisabled(False)
+        self.proceed_btn.setDisabled(False)
+        self.reset_btn.setDisabled(False)
+        self.stop_continuous_btn.setDisabled(True)  # Disable "Stop Continuous Play"
+
+        self.next_week_btn.setEnabled(True)
+        self.proceed_btn.setEnabled(True)
+        self.end_state = 1
+        self.reset()
 
     def make_dark_palette(self):
         # Dark Mode
@@ -465,22 +538,37 @@ class BigBrother(QMainWindow):
     def enable_button(self):
         self.next_week_btn.setEnabled(True)
 
-    def create_players(self):
-        n = []
-        for i in range(self.num_players):
-            name = names.get_first_name()
-            while name in n:
+    def create_players(self, season=None):
+        """
+        Creates the houseguests for the game.
+
+        In the default Random Mode, it generates a list of random houseguest names.
+        In the Legends Mode, it uses a pre-defined list of houseguests based on the selected season.
+
+        Args:
+            season (int, optional): The season number for Legends Mode. If not provided, it generates random houseguests.
+
+        Returns:
+            None
+        """
+        if season is None:
+            # Random Mode: Generate random houseguests
+            n = []
+            for i in range(self.num_players):
                 name = names.get_first_name()
-            self.houseguests.append(HouseGuest(name))
-            n.append(name)
+                while name in n:
+                    name = names.get_first_name()
+                self.houseguests.append(HouseGuest(name))
+                n.append(name)
+        else:
+            # Legends Mode: Use pre-defined houseguests from the selected season
+            self.houseguests = get_legends_houseguests(season)
 
     def do_impressions(self):
         for hg1 in self.houseguests:
             for hg2 in self.houseguests:
                 if hg1 != hg2:
-                    impression = random.randint(
-                        1, 10
-                    )  # Generate impressions between 1 and 10
+                    impression = random.randint(4, 6)  # Generate impressions between 4 and 6
                     hg1.impressions[hg2.name] = impression
         for hg in self.houseguests:
             self.print_debug([hg.name, hg.impressions])
@@ -504,7 +592,11 @@ class BigBrother(QMainWindow):
             self.reset()
             return
         self.week += 1
-        self.choose_hg_btn.setDisabled(True)
+        
+        if not self.continuous_play:
+            self.choose_hg_btn.setDisabled(True)
+            self.play_continuously_btn.setDisabled(True)
+            self.stop_continuous_btn.setDisabled(True)
         tsl = self.title_season_label
         if self.retain_season:
             tsl.setText(f"Season {self.season_num}, Week {self.week}")
@@ -524,7 +616,8 @@ class BigBrother(QMainWindow):
         # If more than 2 players, play regular week
         if len(self.houseguests) > 2:
             # Regular game play
-            self.next_week_btn.setEnabled(False)
+            if not self.continuous_play:
+                self.next_week_btn.setEnabled(False)
             self.select_HOH()
             self.set_text_color_hglw()
             self.events.event_spawner()
@@ -542,7 +635,8 @@ class BigBrother(QMainWindow):
             self.set_text_color_hglw()
             self.text_box.clear()
             self.summarize_week()
-            self.next_week_btn.setEnabled(True)
+            if not self.continuous_play:
+                self.next_week_btn.setEnabled(True)
 
         else:
             self.finale()
@@ -556,9 +650,6 @@ class BigBrother(QMainWindow):
         # Disable the "Proceed" and "Forward 1 Week" buttons
         self.proceed_btn.setEnabled(False)
         self.next_week_btn.setEnabled(False)
-
-        # Increment the season number
-        self.season_num += 1
 
         # Have them plead their case
         self.print_text(f"{self.houseguests[0].name} pleads their case...")
@@ -654,7 +745,8 @@ class BigBrother(QMainWindow):
         self.print_text(f"{winner.name} wins Big Brother!")
         # Remove evicted houseguest from the list
         for i in range(self.houseguest_list_widget.count()):
-            self.print_text(self.houseguest_list_widget.item(i).text())
+            # Why is this line of code even here??? Why would this be here in the first place??
+            # self.print_text(self.houseguest_list_widget.item(i).text())
             if self.houseguest_list_widget.item(i).text() != winner.name:
                 row = i
         self.houseguest_list_widget.takeItem(row)
@@ -684,6 +776,10 @@ class BigBrother(QMainWindow):
             self.season_num += 1
 
     def proceed(self):
+        self.choose_hg_btn.setDisabled(True)
+        self.play_continuously_btn.setDisabled(True)
+        if self.continuous_play is False:
+            self.stop_continuous_btn.setDisabled(True)
         try:
             if self.step_index == 0:
                 self.next_week_btn.setText("Forward 1 Week")
@@ -831,7 +927,7 @@ class BigBrother(QMainWindow):
     def select_HOH(self):
         # Choose HOH
         # Check if only 3 players left
-        winner = self.comp("HOH")
+        winner = self.events.comp("HOH")
         if len(self.houseguests) > 3:
 
             # Can't be HOH two weeks in a row
@@ -898,7 +994,7 @@ class BigBrother(QMainWindow):
         # Check if there are more than 3 houseguests remaining
         if len(self.houseguests) > 3:
             # Play veto competition
-            self.veto_winner = self.comp("Veto")
+            self.veto_winner = self.events.comp("Veto")
         else:
             # No veto competition
             self.print_text("There are only 3 houseguests remaining, so no veto competition will be held.")
@@ -1068,6 +1164,8 @@ class BigBrother(QMainWindow):
         self.used = None
         self.evicted = None
         self.renoms_for_list = None
+        self.showmances = []
+        self.alliances = {}
 
         # Clear houseguest list
         self.houseguest_list_widget.clear()
@@ -1081,18 +1179,13 @@ class BigBrother(QMainWindow):
         self.do_impressions()
 
         # Re-enable buttons
-        self.choose_hg_btn.setDisabled(False)
+        if not self.continuous_play:
+            self.choose_hg_btn.setEnabled(True)
+            self.proceed_btn.setEnabled(True)
+            self.next_week_btn.setEnabled(True)
 
-        # Reset button text
-        self.next_week_btn.setText("Continue")
-        self.introduce_players()
-        
-        # Enable buttons
-        self.proceed_btn.setEnabled(True)
-        self.next_week_btn.setEnabled(True)
-
-        # Reset button text
-        self.next_week_btn.setText("Forward 1 Week")
+            # Reset button text
+            self.next_week_btn.setText("Forward 1 Week")
         self.introduce_players()
 
         tsl = self.title_season_label
@@ -1245,72 +1338,6 @@ class BigBrother(QMainWindow):
         else:
             self.print_speed = csp
 
-    def comp(self, v):
-        if v == "HOH":
-            comps = HOH_COMPS
-            comp_name = random.choice(comps)
-            hoh_text = f"The houseguests compete in the {comp_name} HOH competition."
-            self.formatting[hoh_text] = self.hoh_color
-            self.print_text(hoh_text)
-
-            # Simulate the competition
-            participants = [hg for hg in self.houseguests if hg != self.prev_HOH]
-            random.shuffle(participants)
-            winner = None
-
-            for i in range(len(participants)):
-                houseguest = participants[i]
-                if i == len(participants) - 1:
-                    winner = houseguest
-                    self.print_text(f"{houseguest} wins the {comp_name} HOH competition!")
-                else:
-                    self.print_text(f"{houseguest} is out of the competition.", False)
-
-            return winner
-
-        elif v == "Veto":
-            comp_name = random.choice(VETO_COMPS)
-            veto_text = f"The houseguests compete in the {comp_name} veto competition."
-            self.formatting[veto_text] = self.veto_color
-            self.print_text(veto_text)
-            
-            # Select participants for the veto competition
-            participants = [self.HOH] + self.nominees
-            remaining_houseguests = [hg for hg in self.houseguests if hg not in participants]
-            num_random_players = 3
-            houseguest_choice_drawn = False
-
-            while len(participants) < 6 and len(remaining_houseguests) > 0:
-                if not houseguest_choice_drawn and random.random() < 1 / (len(self.houseguests) - len(participants) + 1):
-                    chooser = random.choice(participants)
-                    chosen_houseguest = max(remaining_houseguests, key=lambda hg: hg.impressions[chooser.name])
-                    participants.append(chosen_houseguest)
-                    remaining_houseguests.remove(chosen_houseguest)
-                    self.print_text(f"{chooser} draws houseguest choice and selects {chosen_houseguest} to play in the veto competition.")
-                    houseguest_choice_drawn = True
-                else:
-                    random_player = random.choice(remaining_houseguests)
-                    participants.append(random_player)
-                    remaining_houseguests.remove(random_player)
-                    self.print_text(f"{random_player} is randomly selected to play in the veto competition.")
-
-            # Simulate the competition
-            random.shuffle(participants)
-            winner = None
-
-            for i in range(len(participants)):
-                houseguest = participants[i]
-                if i == len(participants) - 1:
-                    winner = houseguest
-                    self.print_text(f"{houseguest} wins the {comp_name} veto competition!")
-                else:
-                    self.print_text(f"{houseguest} is out of the competition.")
-
-            return winner
-
-        else:
-            return None
-
     def edit_hg_name(self, item):
         # Get houseguest object
         name = item.text()
@@ -1414,6 +1441,18 @@ class BigBrother(QMainWindow):
 
         layout.addWidget(alliance_list)
         alliance_dialog.exec_()
+        
+    def closeEvent(self, event):
+        if self.continuous_play:
+            # Stop the continuous play loop
+            self.continuous_play = False
+            
+            # Wait for the loop to finish
+            while self.continuous_play:
+                QApplication.processEvents()
+        
+        # Accept the close event and close the window
+        event.accept()
 
 
 class NoFocusDelegate(QStyledItemDelegate):

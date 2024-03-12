@@ -1,3 +1,5 @@
+from houseguest import HouseGuest
+
 NUM_PLAYERS = 12
 PROFESSIONS = [
     "Accountant",
@@ -96,27 +98,96 @@ fight_topics = [
 ]
 
 HOH_COMPS = [
-                "Flip the House",
-                "Majority Rules",
-                "Question the Quack",
-                "Counting Sheep",
-                "True or False",
-                "Memory Lane",
-                "Slip 'n Slide",
-                "Red Light, Green Light",
-                "Egg Heads",
-                "Spelling Bee",
-            ]
+    ("Flip the House", "ELIMINATION"),
+    ("Majority Rules", "ELIMINATION"),
+    ("Question the Quack", "ELIMINATION"),
+    ("Counting Sheep", "FASTEST"),
+    ("True or False", "ELIMINATION"),
+    ("Memory Lane", "FASTEST"),
+    ("Slip 'n Slide", "FASTEST"),
+    ("Red Light, Green Light", "FASTEST"),
+    ("Egg Heads", "ELIMINATION"),
+    ("Spelling Bee", "ELIMINATION"),
+    ("Domino Effect", "ELIMINATION"),
+    ("Wheel of Fortune", "FASTEST"),
+    ("Guess Who", "ELIMINATION"),
+    ("Tug of War", "FASTEST"),
+    ("Puzzle Frenzy", "FASTEST"),
+]
 
 VETO_COMPS = [
-                "Block the Veto",
-                "Knight Moves",
-                "Cry Me a Veto",
-                "Counting Votes",
-                "Fact or Fiction",
-                "Photographic Memory",
-                "Slip 'n Veto",
-                "Red Veto, Green Veto",
-                "Egg on Your Face",
-                "Spelling Veto",
-            ]
+    ("Block the Veto", "ELIMINATION"),
+    ("Knight Moves", "ELIMINATION"),
+    ("Cry Me a Veto", "ELIMINATION"),
+    ("Counting Votes", "FASTEST"),
+    ("Fact or Fiction", "ELIMINATION"),
+    ("Photographic Memory", "FASTEST"),
+    ("Slip 'n Veto", "FASTEST"),
+    ("Red Veto, Green Veto", "FASTEST"),
+    ("Egg on Your Face", "ELIMINATION"),
+    ("Spelling Veto", "ELIMINATION"),
+    ("Veto Twist", "ELIMINATION"),
+    ("Memory Recall", "FASTEST"),
+    ("Veto Scramble", "FASTEST"),
+    ("Veto Showdown", "ELIMINATION"),
+    ("Veto Mastery", "FASTEST"),
+]
+
+legends_data = {
+    "US2": ["Will", "Nicole", "Hardy", "Krista", "Justin", "Shannon", "Autumn", "Mike", "Sheryl", "Kent", "Bunky", "Monica"],
+    "US3": ["Danielle", "Jason", "Lisa", "Marcellas", "Amy", "Roddy", "Chiara", "Gerry", "Josh", "Tonya", "Eric", "Lori"],
+    "US4": ["Jun", "Alison", "Robert", "Erika", "Jack", "Nathan", "Dana", "Jee", "Justin", "Scott", "Amanda", "David", "Michelle"],
+    "US5": ["Drew", "Michael", "Diane", "Nakomis", "Cowboy", "Adria", "Natalie", "Karen", "Will", "Jase", "Marvin", "Holly", "Mike", "Lori"],
+    "US6": ["Maggie", "Ivette", "Janelle", "April", "Howie", "Kaysar", "Jennifer", "Rachel", "James", "Sarah", "Beau", "Eric", "Ashlea", "Michael"],
+    "US7": ["Mike", "Erika", "Janelle", "Will", "Danielle", "George", "James", "Howie", "Marcellas", "Nakomis", "Diane", "Jase", "Alison", "Kaysar"],
+    "US8": ["Dick", "Daniele", "Zach", "Jameka", "Eric", "Jessica", "Amber", "Dustin", "Jen", "Nick", "Kail", "Mike", "Carol", "Joe"],
+    "US9": ["Adam", "Ryan", "Sheila", "Sharon", "James", "Chelsia", "Joshuah", "Natalie", "Matt", "Allison", "Alex", "Amanda", "Parker", "Neil", "Jacob"],
+    "US10": ["Dan", "Memphis", "Jerry", "Keesha", "Renny", "April", "Ollie", "Michelle", "Libra", "Jessie", "Angie", "Steven", "Brian"],
+    "US11": ["Jordan", "Natalie", "Kevin", "Michele", "Jeff", "Russell", "Lydia", "Jessie", "Chima", "Ronnie", "Casey", "Laura", "Braden"],
+    "US12": ["Hayden", "Lane", "Enzo", "Britney", "Ragan", "Matt", "Brendon", "Kathy", "Rachel", "Andrew", "Kristen", "Monet", "Annie"],
+    "US13": ["Rachel", "Porsche", "Adam", "Kalia", "Shelly", "Jordan", "Jeff", "Daniele", "Brendon", "Lawon", "Dominic", "Cassi", "Keith"],
+    "US14": ["Ian", "Dan", "Danielle", "Shane", "Jenn", "Frank", "Joe", "Ashley", "Wil", "Janelle", "Mike", "Britney", "Willie", "JoJo"],
+    "US15": ["Andy", "GinaMarie", "Spencer", "Judd", "McCrae", "Amanda", "Elissa", "Helen", "Aaryn", "Jessie", "Candice", "Howard", "Kaitlin", "Jeremy", "Nick", "David"],
+    "US16": ["Derrick", "Cody", "Victoria", "Caleb", "Frankie", "Zach", "Donny", "Christine", "Nicole", "Hayden", "Jocasta", "Amber", "Brittany", "Devin", "Paola", "Joey"],
+    "US17": ["Steve", "Liz", "Vanessa", "Austin", "Julia", "James", "Meg", "Jackie", "Becky", "Shelli", "Clay", "John", "Jason", "Audrey", "Jeff", "Da'Vonne", "Jace"],
+    "US18": ["Nicole", "Paul", "James", "Natalie", "Corey", "Paulie", "Michelle", "Zakiyah", "Bridgette", "Da'Vonne", "Victor", "Bronte", "Tiffany", "Frank", "Glenn", "Jozea"],
+    "US19": ["Josh", "Paul", "Christmas", "Kevin", "Alex", "Jason", "Raven", "Matt", "Mark", "Elena", "Cody", "Jessica", "Ramses", "Dominique", "Jillian", "Megan", "Cameron"],
+    "US20": ["Kaycee", "Tyler", "JC", "Angela", "Sam", "Brett", "Haleigh", "Faysal", "Scottie", "Rockstar", "Bayleigh", "Rachel", "Kaitlyn", "Swaggy C", "Winston", "Steve"],
+    "US21": ["Jackson", "Holly", "Nicole", "Cliff", "Tommy", "Christie", "Nick", "Analyse", "Jessica", "Kathryn", "Jack", "Sis", "Sam", "Bella", "Ovi", "Kemi", "David"],
+    "US22": ["Cody", "Enzo", "Nicole F", "Christmas", "Memphis", "Tyler", "David", "Dani", "Kevin", "Day", "Ian", "Bayleigh", "Kaysar", "Janelle", "Nicole A", "Keesha"],
+    "US23": ["Xavier", "Derek F", "Azah", "Kyland", "Hannah", "Tiffany", "Claire", "Alyssa", "Sarah Beth", "Derek X", "Britini", "Christian", "Whitney", "Brent", "Brandon", "Travis"],
+    "US24": ["Taylor", "Monte", "Turner", "Brittany", "Alyssa", "Michael", "Terrance", "Kyle", "Joseph", "Jasmine", "Indy", "Ameerah", "Nicole", "Daniel", "Pooch", "Paloma"],
+    "US25": ["TBA"],  # Update with actual houseguests when available
+    "CA1": ["Jillian", "Gary", "Emmett", "Talla", "Andrew", "Topaz", "Alec", "Peter", "Liza", "Tom", "Suzette", "Danielle", "Aneal", "Kat", "AJ"],
+    "CA2": ["Jon", "Neda", "Sabrina", "Heather", "Adel", "Allison", "Arlie", "Rachelle", "Ika", "Kenny", "Paul", "Sarah", "Kyle", "Andrew"],
+    "CA3": ["Sarah", "Godfrey", "Ashleigh", "Pilar", "Zach", "Bruno", "Kevin", "Willow", "Brittnee", "Johnny", "Jordan", "Sindy", "Naeha", "Graig", "Risha"],
+    "CA4": ["Nick & Phil", "Kelsey", "Tim", "Cassandra", "Joel", "Loveita", "Nikki", "Jared", "Maddy", "Ramsey", "Dallas", "Raul", "Mitch", "Christine", "Paige", "Sharry", "Veronica"],
+    "CA5": ["Kevin", "Karen", "Demetres", "Ika", "Dillon", "Dre", "William", "Jackie", "Sindy", "Bruno", "Neda", "Emily", "Cassandra", "Gary", "Dallas", "Mark"],
+    "CA6": ["Paras", "Kaela", "Derek", "Will", "Maddy", "Johnny", "Olivia", "Ali", "Erica", "Hamza", "Jesse", "Veronica", "Merron", "Rozina", "Andrew"],
+    "CA7": ["Dane", "Anthony", "Kyra", "Mark", "Adam", "Sam", "Este", "Damien", "Kiki", "Cory", "Chelsea", "Eddie", "Kailyn", "Maki", "Laura"],
+    "CA8": ["TBA"],  # Update with actual houseguests when available
+    "CA9": ["TBA"],  # Update with actual houseguests when available
+    "CA10": ["TBA"],  # Update with actual houseguests when available
+}
+
+def get_legends_houseguests(season):
+    """
+    Retrieves the list of houseguests for the specified season in Legends Mode.
+
+    Args:
+        season (int): The season number.
+
+    Returns:
+        list: A list of HouseGuest objects representing the houseguests for the specified season.
+
+    Raises:
+        KeyError: If the specified season is not found in the legends data.
+    """
+    if season not in legends_data:
+        raise KeyError(f"Season {season} not found in legends data.")
+
+    houseguests = []
+    for name in legends_data[season]:
+        houseguests.append(HouseGuest(name,season))
+
+    return houseguests
