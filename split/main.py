@@ -1,6 +1,23 @@
 import sys
-from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QPushButton
-from PyQt5.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QPushButton
+from PyQt5.QtWidgets import (
+    QApplication,
+    QMainWindow,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QComboBox,
+    QPushButton,
+)
+from PyQt5.QtWidgets import (
+    QMainWindow,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QComboBox,
+    QPushButton,
+)
 from constants import *
 
 from game import BigBrother as bb
@@ -8,6 +25,7 @@ from game_v1 import BigBrother as bb1
 from game_v2 import BigBrother as bb2
 
 VERSION = 1  # Set the default version here
+
 
 class LegendsWindow(QMainWindow):
     def __init__(self, parent=None):
@@ -32,7 +50,7 @@ class LegendsWindow(QMainWindow):
         self.legends_selection_layout.addWidget(self.legends_label)
         self.legends_selection_layout.addWidget(self.legends_combobox)
         main_layout.addLayout(self.legends_selection_layout)
-        
+
         # Add the start button
         self.start_button = QPushButton("Start")
         self.start_button.clicked.connect(self.start_legends_mode)
@@ -44,7 +62,7 @@ class LegendsWindow(QMainWindow):
         main_layout.addWidget(self.back_button)
 
         self.setCentralWidget(central_widget)
-        
+
     def start_legends_mode(self):
         # Get the selected season from the combobox
         selected_season_index = self.legends_combobox.currentIndex()
@@ -56,6 +74,7 @@ class LegendsWindow(QMainWindow):
 
         # Launch the game with the selected season
         launch_game(season=selected_season_key)
+
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -89,6 +108,7 @@ class MainWindow(QMainWindow):
         legends_window = LegendsWindow(self)
         legends_window.show()
 
+
 def launch_game(pre=None, season=None):
     """
     Launches the Big Brother game simulation based on the specified version.
@@ -102,11 +122,18 @@ def launch_game(pre=None, season=None):
         None
     """
     if VERSION == 1:
-        game_instance = bb(season)  # Create an instance of the BigBrother class from game module
+        game_instance = bb(
+            season
+        )  # Create an instance of the BigBrother class from game module
     elif VERSION == 2:
-        game_instance = bb1(season)  # Create an instance of the BigBrother class from game_v1 module
+        game_instance = bb1(
+            season
+        )  # Create an instance of the BigBrother class from game_v1 module
     elif VERSION == 3:
-        game_instance = bb2(season)  # Create an instance of the BigBrother class from game_v2 module
+        game_instance = bb2(
+            season
+        )  # Create an instance of the BigBrother class from game_v2 module
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

@@ -1,7 +1,17 @@
-from PyQt5.QtWidgets import QApplication, QMainWindow, QGraphicsView, QGraphicsScene, QGraphicsItem, QGraphicsRectItem, QGraphicsLineItem, QGraphicsTextItem
+from PyQt5.QtWidgets import (
+    QApplication,
+    QMainWindow,
+    QGraphicsView,
+    QGraphicsScene,
+    QGraphicsItem,
+    QGraphicsRectItem,
+    QGraphicsLineItem,
+    QGraphicsTextItem,
+)
 from PyQt5.QtCore import Qt, QRectF, QPointF, QTimer
 from PyQt5.QtGui import QBrush, QPen, QColor, QFont
 import random
+
 
 class HouseGuestItem(QGraphicsItem):
     def __init__(self, initials, position, color, parent=None):
@@ -22,6 +32,7 @@ class HouseGuestItem(QGraphicsItem):
         font.setPointSize(8)  # Reduce the font size
         painter.setFont(font)
         painter.drawText(QRectF(-12, -12, 24, 24), Qt.AlignCenter, self.initials)
+
 
 class BigBrotherHouse(QMainWindow):
     def __init__(self):
@@ -69,7 +80,11 @@ class BigBrotherHouse(QMainWindow):
             while not found_space and attempts < max_attempts:
                 col = random.randint(0, num_cols - room_cols)
                 row = random.randint(0, num_rows - room_rows)
-                if all(self.grid[r][c] == 0 for r in range(row, row + room_rows) for c in range(col, col + room_cols)):
+                if all(
+                    self.grid[r][c] == 0
+                    for r in range(row, row + room_rows)
+                    for c in range(col, col + room_cols)
+                ):
                     for r in range(row, row + room_rows):
                         for c in range(col, col + room_cols):
                             self.grid[r][c] = 1
@@ -116,8 +131,13 @@ class BigBrotherHouse(QMainWindow):
                     hallway_x = room.rect().right()
                     hallway_y = max(room.rect().top(), other_room.rect().top())
                     hallway_width = 10
-                    hallway_height = min(room.rect().bottom(), other_room.rect().bottom()) - hallway_y
-                    hallway = QGraphicsRectItem(hallway_x, hallway_y, hallway_width, hallway_height)
+                    hallway_height = (
+                        min(room.rect().bottom(), other_room.rect().bottom())
+                        - hallway_y
+                    )
+                    hallway = QGraphicsRectItem(
+                        hallway_x, hallway_y, hallway_width, hallway_height
+                    )
                     hallway.setBrush(QBrush(Qt.lightGray))
                     self.scene.addItem(hallway)
 
@@ -137,9 +157,13 @@ class BigBrotherHouse(QMainWindow):
                     # Connect rooms with a horizontal hallway
                     hallway_x = max(room.rect().left(), other_room.rect().left())
                     hallway_y = room.rect().bottom()
-                    hallway_width = min(room.rect().right(), other_room.rect().right()) - hallway_x
+                    hallway_width = (
+                        min(room.rect().right(), other_room.rect().right()) - hallway_x
+                    )
                     hallway_height = 10
-                    hallway = QGraphicsRectItem(hallway_x, hallway_y, hallway_width, hallway_height)
+                    hallway = QGraphicsRectItem(
+                        hallway_x, hallway_y, hallway_width, hallway_height
+                    )
                     hallway.setBrush(QBrush(Qt.lightGray))
                     self.scene.addItem(hallway)
 
@@ -158,11 +182,21 @@ class BigBrotherHouse(QMainWindow):
 
     def add_houseguests(self):
         self.houseguests = []
-        colors = [Qt.red, Qt.green, Qt.blue, Qt.yellow, Qt.cyan, Qt.magenta, Qt.darkYellow]
+        colors = [
+            Qt.red,
+            Qt.green,
+            Qt.blue,
+            Qt.yellow,
+            Qt.cyan,
+            Qt.magenta,
+            Qt.darkYellow,
+        ]
         num_hg = 7
         spawns = []
         for x in range(num_hg):
-            pos = self.get_random_position_in_room(self.rooms[random.randint(0, len(self.rooms) - 1)])
+            pos = self.get_random_position_in_room(
+                self.rooms[random.randint(0, len(self.rooms) - 1)]
+            )
             if pos not in spawns:
                 spawns.append(pos)
                 initials = f"{chr(65 + x)}{chr(65 + x)}"
@@ -173,19 +207,50 @@ class BigBrotherHouse(QMainWindow):
     def move_houseguests(self):
         for hg in self.houseguests:
             current_pos = hg.pos()
-            current_row = int((current_pos.y() - 10 - self.grid_size // 2) // self.grid_size)
-            current_col = int((current_pos.x() - 10 - self.grid_size // 2) // self.grid_size)
+            current_row = int(
+                (current_pos.y() - 10 - self.grid_size // 2) // self.grid_size
+            )
+            current_col = int(
+                (current_pos.x() - 10 - self.grid_size // 2) // self.grid_size
+            )
 
-            if 0 <= current_row < len(self.grid) and 0 <= current_col < len(self.grid[0]):
-                if self.grid[current_row][current_col] == 1 or any(door.contains(current_pos) for door in self.doors):
+            if 0 <= current_row < len(self.grid) and 0 <= current_col < len(
+                self.grid[0]
+            ):
+                if self.grid[current_row][current_col] == 1 or any(
+                    door.contains(current_pos) for door in self.doors
+                ):
                     adjacent_positions = []
-                    for row, col in [(current_row - 1, current_col), (current_row + 1, current_col), (current_row, current_col - 1), (current_row, current_col + 1)]:
+                    for row, col in [
+                        (current_row - 1, current_col),
+                        (current_row + 1, current_col),
+                        (current_row, current_col - 1),
+                        (current_row, current_col + 1),
+                    ]:
                         if (
                             0 <= row < len(self.grid)
                             and 0 <= col < len(self.grid[0])
-                            and (self.grid[row][col] == 1 or any(door.contains(QPointF(col * self.grid_size + self.grid_size // 2 + 10, row * self.grid_size + self.grid_size // 2 + 10)) for door in self.doors))
+                            and (
+                                self.grid[row][col] == 1
+                                or any(
+                                    door.contains(
+                                        QPointF(
+                                            col * self.grid_size
+                                            + self.grid_size // 2
+                                            + 10,
+                                            row * self.grid_size
+                                            + self.grid_size // 2
+                                            + 10,
+                                        )
+                                    )
+                                    for door in self.doors
+                                )
+                            )
                         ):
-                            new_pos = QPointF(col * self.grid_size + self.grid_size // 2 + 10, row * self.grid_size + self.grid_size // 2 + 10)
+                            new_pos = QPointF(
+                                col * self.grid_size + self.grid_size // 2 + 10,
+                                row * self.grid_size + self.grid_size // 2 + 10,
+                            )
                             if not any(hg.pos() == new_pos for hg in self.houseguests):
                                 adjacent_positions.append(new_pos)
 
@@ -197,14 +262,18 @@ class BigBrotherHouse(QMainWindow):
                 else:
                     valid_positions = []
                     for room in self.rooms:
-                        valid_positions.extend([self.get_random_position_in_room(room) for _ in range(10)])
+                        valid_positions.extend(
+                            [self.get_random_position_in_room(room) for _ in range(10)]
+                        )
                     if valid_positions:
                         new_pos = random.choice(valid_positions)
                         hg.setPos(new_pos)
             else:
                 valid_positions = []
                 for room in self.rooms:
-                    valid_positions.extend([self.get_random_position_in_room(room) for _ in range(10)])
+                    valid_positions.extend(
+                        [self.get_random_position_in_room(room) for _ in range(10)]
+                    )
                 if valid_positions:
                     new_pos = random.choice(valid_positions)
                     hg.setPos(new_pos)
@@ -221,6 +290,7 @@ class BigBrotherHouse(QMainWindow):
         g = random.randint(0, 255)
         b = random.randint(0, 255)
         return QColor(r, g, b)
+
 
 if __name__ == "__main__":
     app = QApplication([])

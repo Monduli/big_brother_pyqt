@@ -15,13 +15,33 @@ from impression_matrix import ImpressionMatrix
 from name_edit import EditNameDialog
 from PyQt5.QtCore import QSettings, Qt, QTimer
 from PyQt5.QtGui import QColor, QPalette, QTextCharFormat, QTextCursor, QFont
-from PyQt5.QtWidgets import (QAction, QApplication, QCheckBox, QColorDialog,
-                             QComboBox, QDialog, QDialogButtonBox,
-                             QDoubleSpinBox, QGridLayout, QHBoxLayout, QLabel,
-                             QLineEdit, QListWidget, QListWidgetItem, QMenuBar,
-                             QPushButton, QSizePolicy, QSpacerItem, QSpinBox,
-                             QStyle, QStyledItemDelegate, QTextEdit,
-                             QVBoxLayout, QWidget, QMainWindow)
+from PyQt5.QtWidgets import (
+    QAction,
+    QApplication,
+    QCheckBox,
+    QColorDialog,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QDoubleSpinBox,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMenuBar,
+    QPushButton,
+    QSizePolicy,
+    QSpacerItem,
+    QSpinBox,
+    QStyle,
+    QStyledItemDelegate,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+    QMainWindow,
+)
 from utils import Utility
 
 #### TODO:
@@ -29,12 +49,13 @@ from utils import Utility
 
 DEBUG_MODE = False
 
+
 class BigBrother(QMainWindow):
 
     def __init__(self, houseguests=None):
         super().__init__()
         self.setWindowTitle("Big Brother (US) Simulator")
-        
+
         self.initVariables()
         self.lmode = False
         if houseguests:
@@ -44,9 +65,9 @@ class BigBrother(QMainWindow):
         self.initUI()
         self.utility = Utility(self)
         self.events = Events(self)
-        
+
         self.timer = QTimer(self)
-        
+
         self.introduce_players()
         self.timer_mode = False
         self.timer_speed = 10  # Number of seconds for one in-game hour
@@ -61,7 +82,7 @@ class BigBrother(QMainWindow):
             (21, 0),  # 9 PM for eviction
         ]
         self.event_index = 0
-        
+
     def initVariables(self):
         # Game settings
         self.num_players = NUM_PLAYERS
@@ -97,7 +118,7 @@ class BigBrother(QMainWindow):
         self.events = []  # Initialize a list to store events
         self.alliances = {}  # Initialize a dictionary to store alliances
         self.showmances = []
-        
+
         self.timer_mode = False
         self.timer_speed = 10  # Number of seconds for one in-game hour
         self.game_day = 1
@@ -126,7 +147,7 @@ class BigBrother(QMainWindow):
         self.no_color = QColor("#FFFFFF")
         self.imp_color = QColor("#FA00B3")
         self.name_color = QColor("#00FF00")
-        self.evict_statement_color = QColor("#FF0000") # Red
+        self.evict_statement_color = QColor("#FF0000")  # Red
         self.list_items = []
         self.houseguest_list_widget = QListWidget()
         for hg in self.houseguests:
@@ -141,7 +162,7 @@ class BigBrother(QMainWindow):
         # Set layout
         overall = QVBoxLayout()
         layout = QHBoxLayout()
-        
+
         # Timer
         self.timer_label = QLabel()
         self.timer_label.setAlignment(Qt.AlignCenter)
@@ -183,10 +204,10 @@ class BigBrother(QMainWindow):
         menu_font = QFont()
         menu_font.setPointSize(8)
         menu_bar.setFont(menu_font)
-        #menu_bar.setMinimumWidth(screen.size().width())  # Set minimum width to 600px
-        #menu_bar.setMaximumHeight(28)
+        # menu_bar.setMinimumWidth(screen.size().width())  # Set minimum width to 600px
+        # menu_bar.setMaximumHeight(28)
         menu_bar.setContentsMargins(20, 0, 20, 0)  # Left/right margins of 20px
-        #layout.setMenuBar(menu_bar)
+        # layout.setMenuBar(menu_bar)
         self.setMenuBar(menu_bar)
 
         layout.setContentsMargins(0, 0, 0, 0)
@@ -230,7 +251,7 @@ class BigBrother(QMainWindow):
 
         # Then add the widget to the main layout
         layout.addWidget(self.left_widget, stretch=1)
-        
+
         # Add "Showmances" button
         self.showmances_btn = QPushButton("Showmances")
         self.showmances_btn.clicked.connect(self.show_showmances)
@@ -238,12 +259,12 @@ class BigBrother(QMainWindow):
         # Add "Alliances" button
         self.alliances_btn = QPushButton("Alliances")
         self.alliances_btn.clicked.connect(self.show_alliances)
-        
+
         top_buttons = QHBoxLayout()
-        
+
         self.start_timer_btn = QPushButton("Advance Time")
         self.start_timer_btn.clicked.connect(self.toggle_timer)
-        
+
         top_buttons.addWidget(self.showmances_btn)
         top_buttons.addWidget(self.alliances_btn)
         top_buttons.addWidget(self.impressions_btn)
@@ -266,24 +287,24 @@ class BigBrother(QMainWindow):
         overall.addLayout(layout)
         overall.addLayout(button_layout)
 
-        #self.setLayout(overall)
+        # self.setLayout(overall)
 
         self.dark_style_sheet("self")
 
         dark_palette = self.make_dark_palette()
-        
+
         self.setCentralWidget(QWidget(self))
         self.centralWidget().setLayout(overall)
 
         self.setPalette(dark_palette)
         self.show()
-        
+
     def toggle_timer(self):
         if self.timer_mode:
             self.pause_timer()
         else:
             self.run_timer_mode()
-        
+
     def run_timer_mode(self):
         # print("Starting timer...")
         self.timer_mode = True
@@ -316,19 +337,30 @@ class BigBrother(QMainWindow):
 
     def check_mandatory_event_time(self):
         current_event_time = self.event_times[self.event_index]
-        if self.game_hour == current_event_time[0] and self.game_minute == current_event_time[1]:
+        if (
+            self.game_hour == current_event_time[0]
+            and self.game_minute == current_event_time[1]
+        ):
             self.handle_mandatory_event()
             self.event_index = (self.event_index + 1) % len(self.event_times)
 
     def handle_mandatory_event(self):
         # Pause the timer and handle the mandatory event
         self.pause_timer()
-        events = [self.select_HOH, self.select_noms, self.play_veto, self.veto_ceremony, self.eviction]
+        events = [
+            self.select_HOH,
+            self.select_noms,
+            self.play_veto,
+            self.veto_ceremony,
+            self.eviction,
+        ]
         events[self.event_index]()
         self.run_timer_mode()
-        
+
     def pre_season_introduction(self):
-        self.print_text("Welcome to the Big Brother house! The houseguests are about to meet each other for the first time.")
+        self.print_text(
+            "Welcome to the Big Brother house! The houseguests are about to meet each other for the first time."
+        )
 
         # Simulate 20-30 interactions
         for _ in range(20):
@@ -467,7 +499,7 @@ class BigBrother(QMainWindow):
             item = self.houseguest_list_widget.item(i)
             name = item.text()
             hg = next(h for h in self.houseguests if h.name == name)
-            
+
             if self.nominees:
                 if hg in self.nominees:
                     in_nom = True
@@ -585,7 +617,9 @@ class BigBrother(QMainWindow):
         for hg1 in self.houseguests:
             for hg2 in self.houseguests:
                 if hg1 != hg2:
-                    impression = random.randint(4, 6)  # Generate impressions between 4 and 6
+                    impression = random.randint(
+                        4, 6
+                    )  # Generate impressions between 4 and 6
                     hg1.impressions[hg2.name] = impression
         for hg in self.houseguests:
             self.print_debug([hg.name, hg.impressions])
@@ -609,7 +643,7 @@ class BigBrother(QMainWindow):
             self.reset()
             return
         self.week += 1
-        
+
         self.choose_hg_btn.setDisabled(True)
         tsl = self.title_season_label
         if self.retain_season:
@@ -650,10 +684,10 @@ class BigBrother(QMainWindow):
 
         else:
             self.finale()
-            
+
     def finale(self):
         self.left_list_widget.clear()
-        
+
         # Finale
         self.print_text(
             f"Final 2: {self.houseguests[0].name} and {self.houseguests[1].name}"
@@ -691,21 +725,13 @@ class BigBrother(QMainWindow):
             if score_diff >= 8 and max(imp1, imp2) == 10:
                 phrase = random.choice(FINALE_PHRASES[10]).format(name=higher_name)
             elif score_diff >= 6:
-                phrase = random.choice(FINALE_PHRASES[8, 9]).format(
-                    name=higher_name
-                )
+                phrase = random.choice(FINALE_PHRASES[8, 9]).format(name=higher_name)
             elif score_diff >= 4:
-                phrase = random.choice(FINALE_PHRASES[6, 7]).format(
-                    name=higher_name
-                )
+                phrase = random.choice(FINALE_PHRASES[6, 7]).format(name=higher_name)
             elif score_diff >= 2:
-                phrase = random.choice(FINALE_PHRASES[4, 5]).format(
-                    name=higher_name
-                )
+                phrase = random.choice(FINALE_PHRASES[4, 5]).format(name=higher_name)
             else:
-                phrase = random.choice(FINALE_PHRASES[2, 3]).format(
-                    name=higher_name
-                )
+                phrase = random.choice(FINALE_PHRASES[2, 3]).format(name=higher_name)
 
             self.print_text(f"{juror.name}: {phrase}")
 
@@ -758,7 +784,7 @@ class BigBrother(QMainWindow):
             if self.houseguest_list_widget.item(i).text() != winner.name:
                 row = i
         self.houseguest_list_widget.takeItem(row)
-        
+
         # Add winner, their votes, runner up, their votes, AFP to left widget
         winner_item = QListWidgetItem(f"Winner: {winner.name}")
         winner_item.setForeground(self.hoh_color)
@@ -780,7 +806,6 @@ class BigBrother(QMainWindow):
 
         if self.retain_season:
             self.season_num += 1
-            
 
     def update_evicted(self):
         # Remove evicted houseguest from the list
@@ -803,8 +828,7 @@ class BigBrother(QMainWindow):
         self.HOH = None
         self.nominees = None
         self.veto_winner = None
-        self.used = None 
-        
+        self.used = None
 
     def select_HOH(self):
         # Choose HOH
@@ -879,7 +903,9 @@ class BigBrother(QMainWindow):
             self.veto_winner = self.events.comp("Veto")
         else:
             # No veto competition
-            self.print_text("There are only 3 houseguests remaining, so no veto competition will be held.")
+            self.print_text(
+                "There are only 3 houseguests remaining, so no veto competition will be held."
+            )
             self.veto_winner = None
 
     def veto_ceremony(self):
@@ -991,7 +1017,6 @@ class BigBrother(QMainWindow):
         self.formatting[statement] = self.evict_statement_color
         self.print_text(f"{evicted.name}{statement}")
         self.evicted_houseguests.append(evicted)
-        
 
         # Update targets after eviction
         for hg in self.houseguests:
@@ -1263,38 +1288,38 @@ class BigBrother(QMainWindow):
         # Set new widths
         new_col3_width = col3_width + added_width
         self.left_widget.setFixedWidth(int(new_col3_width))
-        
+
     def summarize_week(self):
         summary = f"WEEK SUMMARY:\n"
-        
+
         if self.HOH:
             summary += f"- HOH: {self.HOH.name}\n"
-        
+
         if self.nominees:
             summary += f"- Nominees: {', '.join([n.name for n in self.nominees])}\n"
-            
+
         if self.veto_winner:
             summary += f"- Veto Winner: {self.veto_winner.name}\n"
-            
-        if self.used: 
+
+        if self.used:
             summary += f"- Veto Used: {self.used}\n"
-            
+
         if self.renoms_for_list:
             if self.renoms_for_list != self.nominees:
                 summary += f"- Replacement Nominees: {', '.join([r.name for r in self.renoms_for_list])}\n"
-            
+
         if self.evicted:
             summary += f"- Evicted: {self.evicted.name}\n"
-            
-        # Print summary 
+
+        # Print summary
         self.print_text(summary)
-        
+
     def print_text(self, text, nl=True):
         self.utility.print_text(text, nl)
 
     def make_formatting(self):
         self.utility.make_formatting()
-        
+
     def show_showmances(self):
         showmance_dialog = QDialog(self)
         showmance_dialog.setWindowTitle("Showmances")
@@ -1306,7 +1331,7 @@ class BigBrother(QMainWindow):
 
         layout.addWidget(self.showmances_list_widget)
         showmance_dialog.exec_()
-        
+
     def show_alliances(self):
         alliance_dialog = QDialog(self)
         alliance_dialog.setWindowTitle("Alliances")
@@ -1314,14 +1339,16 @@ class BigBrother(QMainWindow):
 
         alliance_list = QListWidget()
         for alliance in self.alliances.values():
-            alliance_list.addItem(f"{alliance.name}: {', '.join([member.name for member in alliance.members])}")
+            alliance_list.addItem(
+                f"{alliance.name}: {', '.join([member.name for member in alliance.members])}"
+            )
 
         layout.addWidget(alliance_list)
         alliance_dialog.exec_()
-        
+
     def closeEvent(self, event):
         QApplication.processEvents()
-        
+
         # Accept the close event and close the window
         event.accept()
 

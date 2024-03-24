@@ -2,12 +2,12 @@ from constants import *
 from PyQt5.QtGui import QTextCharFormat, QTextCursor
 
 
-class Utility():
+class Utility:
     def __init__(self, big_brother):
         self.bb = big_brother
-        
+
         self.houseguests = self.bb.houseguests
-        
+
         self.chosen_color = self.bb.chosen_color
         self.hoh_color = self.bb.hoh_color
         self.noms_color = self.bb.noms_color
@@ -20,7 +20,7 @@ class Utility():
         self.formatting = self.bb.formatting
         self.text_box = self.bb.text_box
         self.set_selves()
-        
+
     def print_text(self, text, nl=True):
         self.make_formatting()
         default_char_format = QTextCharFormat()
@@ -40,11 +40,13 @@ class Utility():
 
             if formatted_indices:
                 last_end = 0
-                for start, end, (phrase, format) in sorted(zip(
-                    [i[0] for i in formatted_indices],
-                    [i[1] for i in formatted_indices],
-                    formatted_phrases
-                )):
+                for start, end, (phrase, format) in sorted(
+                    zip(
+                        [i[0] for i in formatted_indices],
+                        [i[1] for i in formatted_indices],
+                        formatted_phrases,
+                    )
+                ):
                     cursor.insertText(line[last_end:start], default_char_format)
                     char_format = QTextCharFormat()
                     char_format.setForeground(format)
@@ -68,7 +70,7 @@ class Utility():
             cursor.insertText("\n", default_char_format)
 
         self.text_box.setTextCursor(cursor)
-            
+
     def make_formatting(self):
         self.set_selves()
         for hg in self.houseguests:
@@ -80,7 +82,11 @@ class Utility():
             if self.veto_winner is not None and self.veto_winner.name == n:
                 self.bb.print_debug(f"Setting {n} to veto_color")
                 self.formatting[n] = self.veto_color
-            if self.nominees and self.formatting[n] != self.veto_color and self.formatting[n] != self.evicted_color:
+            if (
+                self.nominees
+                and self.formatting[n] != self.veto_color
+                and self.formatting[n] != self.evicted_color
+            ):
                 for p in self.nominees:
                     if p.name == n:
                         self.bb.print_debug(f"Setting {n} to nom_color")
@@ -88,16 +94,16 @@ class Utility():
             if self.evicted is not None and self.evicted.name == n:
                 self.bb.print_debug(f"Setting {n} to evicted_color")
                 self.formatting[n] = self.evicted_color
-                
+
     def set_selves(self):
         self.houseguests = self.bb.houseguests
-        self.HOH = self.bb.HOH  
+        self.HOH = self.bb.HOH
         self.veto_winner = self.bb.veto_winner
         self.nominees = self.bb.nominees
         self.evicted = self.bb.evicted
         self.alliances = self.bb.alliances
         self.debug_impressions = self.bb.debug_impressions
-                    
+
     def get_name_with_format(self, char):
         for name, format in self.formatting.items():
             self.bb.print_debug([name, format, self.no_color])

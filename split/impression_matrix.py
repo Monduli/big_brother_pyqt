@@ -1,6 +1,5 @@
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import (QGridLayout, QLabel, QPushButton, QVBoxLayout,
-                             QWidget)
+from PyQt5.QtWidgets import QGridLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 
 class ColoredLabel(QLabel):
@@ -10,7 +9,7 @@ class ColoredLabel(QLabel):
         self.update_color()
 
     def update_color(self):
-        color = "#FFFFFF" # default color
+        color = "#FFFFFF"  # default color
         if self.value == "X":
             self.setStyleSheet("background-color: gray; color: white;")
         else:
@@ -21,13 +20,13 @@ class ColoredLabel(QLabel):
                 color = "#fe5f00"
             elif value == 3:
                 color = "#fe8b00"
-            elif value == 4: 
+            elif value == 4:
                 color = "#ffb000"
-            elif value == 5: 
+            elif value == 5:
                 color = "#fcd303"
-            elif value == 6: 
+            elif value == 6:
                 color = "#cfcd00"
-            elif value == 7: 
+            elif value == 7:
                 color = "#a2c600"
             elif value == 8:
                 color = "#70bd00"
@@ -35,12 +34,13 @@ class ColoredLabel(QLabel):
                 color = "#30b200"
             elif value == 10:
                 color = "#45FF00"
-            self.setStyleSheet(f"background-color: {color}; color: black;") 
+            self.setStyleSheet(f"background-color: {color}; color: black;")
 
     def setValue(self, value):
         self.value = value
         self.update_color()
         self.setText(str(value))
+
 
 class ImpressionMatrix(QWidget):
     def __init__(self, houseguests):
@@ -91,15 +91,15 @@ class ImpressionMatrix(QWidget):
             name = QLabel(hg.name)
             name.setAlignment(Qt.AlignCenter)
             self.grid.addWidget(name, row + 1, 0)
-            
+
         for row, hg1 in enumerate(self.houseguests):
             for col, hg2 in enumerate(self.houseguests):
                 if hg1 != hg2:
-                    label = ColoredLabel(self.impressions[hg1.name][hg2.name])  
+                    label = ColoredLabel(self.impressions[hg1.name][hg2.name])
                 else:
                     label = ColoredLabel("X")
                 label.setAlignment(Qt.AlignCenter)
-                self.grid.addWidget(label, row + 1, col + 1)  
+                self.grid.addWidget(label, row + 1, col + 1)
 
         # Add impression values to grid
         self.update_matrix()
@@ -112,11 +112,11 @@ class ImpressionMatrix(QWidget):
                     if self.show_values:
                         label = QLabel(str(value))
                     else:
-                        label = ColoredLabel(value) 
+                        label = ColoredLabel(value)
                 else:
                     label = ColoredLabel("X")
                 label.setAlignment(Qt.AlignCenter)
-                self.grid.addWidget(label, row + 1, col + 1) 
+                self.grid.addWidget(label, row + 1, col + 1)
 
     def appear(self, houseguests):
         self.impressions = {}

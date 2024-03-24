@@ -75,20 +75,20 @@ HOUSEGUEST_PROFESSIONS = {
         "Lori": "Yoga Instructor",
     },
     "US6": {
-    "Maggie": "ER Nurse",
-    "Ivette": "Waitress",
-    "Janelle": "VIP Cocktail Waitress",
-    "April": "Pharmaceutical Sales Representative",
-    "Howie": "Jedi",
-    "Kaysar": "Graphic Designer",
-    "Jennifer": "Arena Football Dancer",
-    "Rachel": "Horse Breeder",
-    "James": "Loss Prevention Manager",
-    "Sarah": "Retail Manager",
-    "Beau": "Personal Shopper",
-    "Eric": "Talent Management Assistant",
-    "Ashlea": "Clothing Designer",
-    "Michael": "Artist",
+        "Maggie": "ER Nurse",
+        "Ivette": "Waitress",
+        "Janelle": "VIP Cocktail Waitress",
+        "April": "Pharmaceutical Sales Representative",
+        "Howie": "Jedi",
+        "Kaysar": "Graphic Designer",
+        "Jennifer": "Arena Football Dancer",
+        "Rachel": "Horse Breeder",
+        "James": "Loss Prevention Manager",
+        "Sarah": "Retail Manager",
+        "Beau": "Personal Shopper",
+        "Eric": "Talent Management Assistant",
+        "Ashlea": "Clothing Designer",
+        "Michael": "Artist",
     },
     "US7": {
         "Mike": "Commercial Painter",
@@ -511,14 +511,14 @@ class HouseGuest:
     def __init__(self, name, lmode=False):
         # Generate random age and profession
         self.age = random.randint(21, 40)
-        
+
         self.profession = None
-        
+
         if isinstance(lmode, str):
             if lmode in HOUSEGUEST_PROFESSIONS:
                 if name in HOUSEGUEST_PROFESSIONS[lmode]:
                     self.profession = HOUSEGUEST_PROFESSIONS[lmode][name]
-        
+
         if self.profession == None:
             self.profession = random.choice(PROFESSIONS)
 
@@ -536,8 +536,6 @@ class HouseGuest:
         self.manipulativeness = random.randint(1, 5)
         self.emotionality = random.randint(1, 5)
         self.competitiveness = random.randint(1, 5)
-        
-        
 
     def __repr__(self):
         return self.name

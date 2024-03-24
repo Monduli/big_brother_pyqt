@@ -41,11 +41,9 @@ class CustomTextEdit(QTextEdit):
         cursor.movePosition(QTextCursor.End)
         cursor.insertHtml(html)
         self.setTextCursor(cursor)
-        
+
     def appendPlainText(self, text):
         cursor = self.textCursor()
         cursor.movePosition(QTextCursor.End)
         cursor.insertText(text)
         self.setTextCursor(cursor)
-        
-    

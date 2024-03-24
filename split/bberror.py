@@ -16,21 +16,25 @@ class BBError(Exception):
             error_message += f"\n*** Big Brother Simulation Error ***\n\n"
             error_message += f"Error occurred in: {sys._getframe(1).f_code.co_name}\n"
         except Exception as e:
-            error_message += f"\nError occurred while getting the error location: {str(e)}\n"
+            error_message += (
+                f"\nError occurred while getting the error location: {str(e)}\n"
+            )
 
         try:
             error_message += f"Current Houseguests: {', '.join([hg.name for hg in self.big_brother.houseguests])}\n\n"
         except Exception as e:
-            error_message += f"\nError occurred while getting the current houseguests: {str(e)}\n"
+            error_message += (
+                f"\nError occurred while getting the current houseguests: {str(e)}\n"
+            )
 
         try:
             error_message += f"Error: {type(self.original_exception).__name__}\n"
         except Exception as e:
             error_message += f"\nError occurred while getting the original exception type: {str(e)}\n"
-            
+
         if isinstance(self.original_exception, KeyError) and self.added_info:
             error_message += f"Owner of impressions: {self.added_info[0]}\n"
-            error_message += f"Dictionary given: {self.added_info[1]}\n" 
+            error_message += f"Dictionary given: {self.added_info[1]}\n"
         else:
             error_message += "\n"
 
@@ -47,7 +51,9 @@ class BBError(Exception):
             error_message += f"- Veto Winner: {self.big_brother.veto_winner.name if self.big_brother.veto_winner else 'None'}\n"
             error_message += f"- Evicted: {self.big_brother.evicted.name if self.big_brother.evicted else 'None'}\n"
         except Exception as e:
-            error_message += f"\nError occurred while getting the game state: {str(e)}\n"
+            error_message += (
+                f"\nError occurred while getting the game state: {str(e)}\n"
+            )
             game_state_error = True
 
         if not game_state_error:
