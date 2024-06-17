@@ -13,6 +13,14 @@ from PyQt5.QtGui import QBrush, QPen, QColor, QFont
 import random
 
 
+class GridSquare:
+    def __init__(self):
+        self.walls = {"top": True, "right": True, "bottom": True, "left": True}
+        self.is_room = False
+
+    def remove_wall(self, direction):
+        self.walls[direction] = False
+
 class HouseGuestItem(QGraphicsItem):
     def __init__(self, initials, position, color, parent=None):
         super().__init__(parent)
@@ -67,7 +75,7 @@ class BigBrotherHouse(QMainWindow):
             self.add_houseguests()
             self.timer = QTimer(self)
             self.timer.timeout.connect(self.move_houseguests)
-            self.timer.start(100)  # Move houseguests every 1 second
+            self.timer.start(500)  # Move houseguests every 1 second
 
     def create_house(self):
         house_width = self.width() - 20
@@ -75,159 +83,76 @@ class BigBrotherHouse(QMainWindow):
         num_cols = house_width // self.grid_size
         num_rows = house_height // self.grid_size
 
-        self.grid = [[0 for _ in range(num_cols)] for _ in range(num_rows)]
-        self.rooms = []
-        self.hallways = []
-        self.doors = []
-        self.labels = []
-
-        room_presets = [
-            (4, 4),  # Small room (4x4 cells)
-            (6, 4),  # Medium room (6x4 cells)
-            (6, 6),  # Large room (6x6 cells)
-            (8, 8),  # XL room (8x8 cells)
+        self.grid_squares = [
+            [GridSquare() for _ in range(num_cols)] for _ in range(num_rows)
         ]
+        self.rooms = []
+        self.doors = []
 
-        # 1. Create and label the rooms
-        num_rooms = random.randint(10, 20)
-        for i in range(num_rooms):
-            preset = random.choice(room_presets)
-            room_cols, room_rows = preset
+        # Generate rooms
+        num_rooms = random.randint(5, 10)
+        for _ in range(num_rooms):
+            room_width = random.randint(3, 6)
+            room_height = random.randint(3, 6)
+            room_col = random.randint(0, num_cols - room_width)
+            room_row = random.randint(0, num_rows - room_height)
 
-            found_space = False
-            max_attempts = 100
-            attempts = 0
-            while not found_space and attempts < max_attempts:
-                col = random.randint(0, num_cols - room_cols)
-                row = random.randint(0, num_rows - room_rows)
-                if all(
-                    self.grid[r][c] == 0
-                    for r in range(row, row + room_rows)
-                    for c in range(col, col + room_cols)
-                ):
-                    for r in range(row, row + room_rows):
-                        for c in range(col, col + room_cols):
-                            self.grid[r][c] = 1
-                    found_space = True
-                else:
-                    attempts += 1
+            for row in range(room_row, room_row + room_height):
+                for col in range(room_col, room_col + room_width):
+                    self.grid_squares[row][col].is_room = True
 
-            if found_space:
-                room_x = col * self.grid_size + 10
-                room_y = row * self.grid_size + 10
-                room_width = room_cols * self.grid_size
-                room_height = room_rows * self.grid_size
-                room = QGraphicsRectItem(room_x, room_y, room_width, room_height)
-                room.setBrush(QBrush(Qt.gray))
-                room.setPen(QPen(Qt.black, 4))
-                self.rooms.append(room)
-                # Remove the line that adds the room to the scene
-                # self.scene.addItem(room)
+            room = QGraphicsRectItem(
+                room_col * self.grid_size + 10,
+                room_row * self.grid_size + 10,
+                room_width * self.grid_size,
+                room_height * self.grid_size,
+            )
+            room.setBrush(QBrush(Qt.gray))
+            room.setPen(QPen(Qt.black, 4))
+            self.rooms.append(room)
+            self.scene.addItem(room)
 
-                # Add room label
-                label_text = f"Room {i+1}"
-                label = QGraphicsTextItem(label_text)
-                label.setPos(room_x + 5, room_y + 5)
-                label.setFont(QFont("Arial", 10))
-                self.labels.append(label)
-                # Remove the line that adds the label to the scene
-                # self.scene.addItem(label)
+        # Generate doors
+        for room in self.rooms:
+            room_rect = room.rect()
+            room_col = int((room_rect.x() - 10) // self.grid_size)
+            room_row = int((room_rect.y() - 10) // self.grid_size)
+            room_width = int(room_rect.width() // self.grid_size)
+            room_height = int(room_rect.height() // self.grid_size)
 
-        # Connect adjacent rooms with doors
-        # Connect adjacent rooms with doors
-        for i in range(len(self.rooms)):
-            room = self.rooms[i]
+            # Choose a random wall to place the door
+            wall = random.choice(["top", "right", "bottom", "left"])
 
-            for j in range(i + 1, len(self.rooms)):
-                other_room = self.rooms[j]
+            if wall == "top":
+                door_col = room_col + random.randint(1, room_width - 2)
+                door_row = room_row
+            elif wall == "right":
+                door_col = room_col + room_width - 1
+                door_row = room_row + random.randint(1, room_height - 2)
+            elif wall == "bottom":
+                door_col = room_col + random.randint(1, room_width - 2)
+                door_row = room_row + room_height - 1
+            else:  # wall == "left"
+                door_col = room_col
+                door_row = room_row + random.randint(1, room_height - 2)
 
-                # Check if the rooms are truly adjacent (share a side and are within one grid size)
-                is_adjacent = False
-                if (
-                    abs(room.rect().right() - other_room.rect().left())
-                    <= self.grid_size
-                    and abs(room.rect().top() - other_room.rect().top())
-                    <= self.grid_size
-                ):
-                    is_adjacent = True
-                elif (
-                    abs(room.rect().left() - other_room.rect().right())
-                    <= self.grid_size
-                    and abs(room.rect().top() - other_room.rect().top())
-                    <= self.grid_size
-                ):
-                    is_adjacent = True
-                elif (
-                    abs(room.rect().bottom() - other_room.rect().top())
-                    <= self.grid_size
-                    and abs(room.rect().left() - other_room.rect().left())
-                    <= self.grid_size
-                ):
-                    is_adjacent = True
-                elif (
-                    abs(room.rect().top() - other_room.rect().bottom())
-                    <= self.grid_size
-                    and abs(room.rect().left() - other_room.rect().left())
-                    <= self.grid_size
-                ):
-                    is_adjacent = True
-
-                if is_adjacent:
-                    # Determine the side where the door should be placed
-                    if (
-                        abs(room.rect().right() - other_room.rect().left())
-                        <= self.grid_size
-                    ):
-                        # Place door on the shared vertical side
-                        door_x = int(room.rect().right() - self.grid_size // 2)
-                        door_y = (
-                            int(min(room.rect().top(), other_room.rect().top()))
-                            + self.grid_size // 10
-                        )
-                        door_width = self.grid_size
-                        door_height = self.grid_size - 2 * (self.grid_size // 10)
-
-                    elif (
-                        abs(room.rect().left() - other_room.rect().right())
-                        <= self.grid_size
-                    ):
-                        # Place door on the shared vertical side
-                        door_x = int(room.rect().left() - self.grid_size // 2)
-                        door_y = (
-                            int(min(room.rect().top(), other_room.rect().top()))
-                            + self.grid_size // 10
-                        )
-                        door_width = self.grid_size
-                        door_height = self.grid_size - 2 * (self.grid_size // 10)
-
-                    elif (
-                        abs(room.rect().bottom() - other_room.rect().top())
-                        <= self.grid_size
-                    ):
-                        # Place door on the shared horizontal side
-                        door_x = (
-                            int(min(room.rect().left(), other_room.rect().left()))
-                            + self.grid_size // 10
-                        )
-                        door_y = int(room.rect().bottom() - self.grid_size // 2)
-                        door_width = self.grid_size - 2 * (self.grid_size // 10)
-                        door_height = self.grid_size
-
-                    else:
-                        # Place door on the shared horizontal side
-                        door_x = (
-                            int(min(room.rect().left(), other_room.rect().left()))
-                            + self.grid_size // 10
-                        )
-                        door_y = int(room.rect().top() - self.grid_size // 2)
-                        door_width = self.grid_size - 2 * (self.grid_size // 10)
-                        door_height = self.grid_size
-
-                    # Create the door
-                    door = QGraphicsRectItem(door_x, door_y, door_width, door_height)
-                    door.setBrush(QBrush(Qt.darkGreen))
-                    # self.scene.addItem(door)
-                    self.doors.append(door)
+            self.grid_squares[door_row][door_col].remove_wall(wall)
+            door_x = door_col * self.grid_size + 10
+            door_y = door_row * self.grid_size + 10
+            door_width = self.grid_size // 4
+            door_height = self.grid_size // 4
+            if wall in ["top", "bottom"]:
+                door_x += (self.grid_size - door_width) // 2
+                door_y += (
+                    0 if wall == "top" else self.grid_size - door_height
+                )
+            else:
+                door_x += 0 if wall == "left" else self.grid_size - door_width
+                door_y += (self.grid_size - door_height) // 2
+            door = QGraphicsRectItem(door_x, door_y, door_width, door_height)
+            door.setBrush(QBrush(Qt.darkGreen))
+            self.doors.append(door)
+            self.scene.addItem(door)
 
         # Draw grid lines
         for x in range(0, house_width, self.grid_size):
@@ -235,10 +160,7 @@ class BigBrotherHouse(QMainWindow):
         for y in range(0, house_height, self.grid_size):
             self.scene.addItem(QGraphicsLineItem(10, y + 10, house_width - 10, y + 10))
 
-        self.creation_step = 0
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.create_next_element)
-        self.timer.start(100)  # Delay of 1 second between each element
+        self.add_houseguests()
 
     def connect_rooms_vertically(self, room, other_room):
         hallway_x = int(room.rect().right())
@@ -386,19 +308,11 @@ class BigBrotherHouse(QMainWindow):
     def move_houseguests(self):
         for hg in self.houseguests:
             current_pos = hg.pos()
-            current_row = int(
-                (current_pos.y() - 10 - self.grid_size // 2) // self.grid_size
-            )
-            current_col = int(
-                (current_pos.x() - 10 - self.grid_size // 2) // self.grid_size
-            )
+            current_row = int((current_pos.y() - 10) // self.grid_size)
+            current_col = int((current_pos.x() - 10) // self.grid_size)
 
-            if 0 <= current_row < len(self.grid) and 0 <= current_col < len(
-                self.grid[0]
-            ):
-                if self.grid[current_row][current_col] == 1 or any(
-                    door.contains(current_pos) for door in self.doors
-                ):
+            if 0 <= current_row < len(self.grid) and 0 <= current_col < len(self.grid[0]):
+                if self.grid[current_row][current_col] == 1:
                     adjacent_positions = []
                     for row, col in [
                         (current_row - 1, current_col),
@@ -414,12 +328,8 @@ class BigBrotherHouse(QMainWindow):
                                 or any(
                                     door.contains(
                                         QPointF(
-                                            col * self.grid_size
-                                            + self.grid_size // 2
-                                            + 10,
-                                            row * self.grid_size
-                                            + self.grid_size // 2
-                                            + 10,
+                                            col * self.grid_size + self.grid_size // 2 + 10,
+                                            row * self.grid_size + self.grid_size // 2 + 10,
                                         )
                                     )
                                     for door in self.doors
@@ -436,26 +346,14 @@ class BigBrotherHouse(QMainWindow):
                     if adjacent_positions:
                         new_pos = random.choice(adjacent_positions)
                         hg.setPos(new_pos)
-                    else:
-                        hg.setPos(current_pos)
                 else:
-                    valid_positions = []
-                    for room in self.rooms:
-                        valid_positions.extend(
-                            [self.get_random_position_in_room(room) for _ in range(10)]
-                        )
-                    if valid_positions:
-                        new_pos = random.choice(valid_positions)
-                        hg.setPos(new_pos)
-            else:
-                valid_positions = []
-                for room in self.rooms:
-                    valid_positions.extend(
-                        [self.get_random_position_in_room(room) for _ in range(10)]
-                    )
-                if valid_positions:
-                    new_pos = random.choice(valid_positions)
+                    room = random.choice(self.rooms)
+                    new_pos = self.get_random_position_in_room(room)
                     hg.setPos(new_pos)
+            else:
+                room = random.choice(self.rooms)
+                new_pos = self.get_random_position_in_room(room)
+                hg.setPos(new_pos)
 
     def get_random_position_in_room(self, room):
         col = random.randint(0, int(room.rect().width() - 24) // self.grid_size)

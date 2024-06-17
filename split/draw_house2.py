@@ -22,14 +22,14 @@ class HouseGuestItem(QGraphicsItem):
         self.setFlag(QGraphicsItem.ItemIsFocusable, False)
 
     def boundingRect(self):
-        return QRectF(-12, -12, 24, 24)  # Reduce the bounding rect size
+        return QRectF(-12, -12, 24, 24)
 
     def paint(self, painter, option, widget=None):
         painter.setBrush(QBrush(self.color))
-        painter.setPen(QPen(Qt.black, 1))  # Reduce the pen width
-        painter.drawEllipse(-12, -12, 24, 24)  # Reduce the ellipse size
+        painter.setPen(QPen(Qt.black, 1))
+        painter.drawEllipse(-12, -12, 24, 24)
         font = QFont()
-        font.setPointSize(8)  # Reduce the font size
+        font.setPointSize(8)
         painter.setFont(font)
         painter.drawText(QRectF(-12, -12, 24, 24), Qt.AlignCenter, self.initials)
 
@@ -46,11 +46,6 @@ class BigBrotherHouse(QMainWindow):
 
         self.grid_size = 50
         self.create_house()
-        self.add_houseguests()
-
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.move_houseguests)
-        self.timer.start(1000)  # Move houseguests every 1 second
 
     def create_house(self):
         house_width = self.width() - 20
@@ -59,6 +54,9 @@ class BigBrotherHouse(QMainWindow):
         num_rows = house_height // self.grid_size
 
         self.grid = [[0 for _ in range(num_cols)] for _ in range(num_rows)]
+        self.rooms = []
+        self.doors = []
+        self.labels = []
 
         room_presets = [
             (4, 4),  # Small room (4x4 cells)
@@ -67,8 +65,7 @@ class BigBrotherHouse(QMainWindow):
             (8, 8),  # XL room (8x8 cells)
         ]
 
-        self.rooms = []
-        self.room_labels = []
+        # Create and label the rooms
         num_rooms = random.randint(10, 20)
         for i in range(num_rooms):
             preset = random.choice(room_presets)
@@ -99,7 +96,7 @@ class BigBrotherHouse(QMainWindow):
                 room_height = room_rows * self.grid_size
                 room = QGraphicsRectItem(room_x, room_y, room_width, room_height)
                 room.setBrush(QBrush(Qt.gray))
-                room.setPen(QPen(Qt.black, 1))
+                room.setPen(QPen(Qt.black, 4))
                 self.rooms.append(room)
                 self.scene.addItem(room)
 
@@ -108,101 +105,72 @@ class BigBrotherHouse(QMainWindow):
                 label = QGraphicsTextItem(label_text)
                 label.setPos(room_x + 5, room_y + 5)
                 label.setFont(QFont("Arial", 10))
-                self.room_labels.append(label)
+                self.labels.append(label)
                 self.scene.addItem(label)
 
-        self.connect_rooms()
-
-        # Draw grid lines
-        for x in range(0, house_width, self.grid_size):
-            self.scene.addItem(QGraphicsLineItem(x + 10, 10, x + 10, house_height - 10))
-        for y in range(0, house_height, self.grid_size):
-            self.scene.addItem(QGraphicsLineItem(10, y + 10, house_width - 10, y + 10))
-
-    def connect_rooms(self):
-        self.doors = []
+        # Connect adjacent rooms with doors
         for i in range(len(self.rooms)):
             room = self.rooms[i]
             for j in range(i + 1, len(self.rooms)):
                 other_room = self.rooms[j]
 
-                if abs(room.rect().left() - other_room.rect().right()) < 10:
-                    # Connect rooms with a vertical hallway
-                    hallway_x = room.rect().right()
-                    hallway_y = max(room.rect().top(), other_room.rect().top())
-                    hallway_width = 10
-                    hallway_height = (
-                        min(room.rect().bottom(), other_room.rect().bottom())
-                        - hallway_y
+                if (
+                    room.rect().right() == other_room.rect().left()
+                    or room.rect().left() == other_room.rect().right()
+                ):
+                    # Vertical door
+                    door_x = int(max(room.rect().left(), other_room.rect().left()))
+                    door_y = int(
+                        min(room.rect().top(), other_room.rect().top())
+                        + (
+                            max(room.rect().bottom(), other_room.rect().bottom())
+                            - min(room.rect().top(), other_room.rect().top())
+                        )
+                        // 2
+                        - self.grid_size // 4
                     )
-                    hallway = QGraphicsRectItem(
-                        hallway_x, hallway_y, hallway_width, hallway_height
+                    door_width = self.grid_size // 2
+                    door_height = self.grid_size // 2
+                elif (
+                    room.rect().bottom() == other_room.rect().top()
+                    or room.rect().top() == other_room.rect().bottom()
+                ):
+                    # Horizontal door
+                    door_x = int(
+                        min(room.rect().left(), other_room.rect().left())
+                        + (
+                            max(room.rect().right(), other_room.rect().right())
+                            - min(room.rect().left(), other_room.rect().left())
+                        )
+                        // 2
+                        - self.grid_size // 4
                     )
-                    hallway.setBrush(QBrush(Qt.lightGray))
-                    self.scene.addItem(hallway)
+                    door_y = int(max(room.rect().top(), other_room.rect().top()))
+                    door_width = self.grid_size // 2
+                    door_height = self.grid_size // 2
+                else:
+                    continue
 
-                    # Add doors at the ends of the hallway
-                    door1_x = hallway_x - 5
-                    door1_y = hallway_y
-                    door2_x = hallway_x - 5
-                    door2_y = hallway_y + hallway_height - 10
-                    door1 = QGraphicsRectItem(door1_x, door1_y, 10, 10)
-                    door2 = QGraphicsRectItem(door2_x, door2_y, 10, 10)
-                    door1.setBrush(QBrush(Qt.darkGreen))
-                    door2.setBrush(QBrush(Qt.darkGreen))
-                    self.scene.addItem(door1)
-                    self.scene.addItem(door2)
-                    self.doors.extend([door1, door2])
-                elif abs(room.rect().top() - other_room.rect().bottom()) < 10:
-                    # Connect rooms with a horizontal hallway
-                    hallway_x = max(room.rect().left(), other_room.rect().left())
-                    hallway_y = room.rect().bottom()
-                    hallway_width = (
-                        min(room.rect().right(), other_room.rect().right()) - hallway_x
-                    )
-                    hallway_height = 10
-                    hallway = QGraphicsRectItem(
-                        hallway_x, hallway_y, hallway_width, hallway_height
-                    )
-                    hallway.setBrush(QBrush(Qt.lightGray))
-                    self.scene.addItem(hallway)
+                door = QGraphicsRectItem(door_x, door_y, door_width, door_height)
+                door.setBrush(QBrush(Qt.darkGreen))
+                self.doors.append(door)
+                self.scene.addItem(door)
 
-                    # Add doors at the ends of the hallway
-                    door1_x = hallway_x
-                    door1_y = hallway_y - 5
-                    door2_x = hallway_x + hallway_width - 10
-                    door2_y = hallway_y - 5
-                    door1 = QGraphicsRectItem(door1_x, door1_y, 10, 10)
-                    door2 = QGraphicsRectItem(door2_x, door2_y, 10, 10)
-                    door1.setBrush(QBrush(Qt.darkGreen))
-                    door2.setBrush(QBrush(Qt.darkGreen))
-                    self.scene.addItem(door1)
-                    self.scene.addItem(door2)
-                    self.doors.extend([door1, door2])
+        self.add_houseguests()
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.move_houseguests)
+        self.timer.start(100)
 
     def add_houseguests(self):
         self.houseguests = []
-        colors = [
-            Qt.red,
-            Qt.green,
-            Qt.blue,
-            Qt.yellow,
-            Qt.cyan,
-            Qt.magenta,
-            Qt.darkYellow,
-        ]
         num_hg = 7
-        spawns = []
-        for x in range(num_hg):
-            pos = self.get_random_position_in_room(
-                self.rooms[random.randint(0, len(self.rooms) - 1)]
-            )
-            if pos not in spawns:
-                spawns.append(pos)
-                initials = f"{chr(65 + x)}{chr(65 + x)}"
-                color = self.get_unique_color()
-                self.houseguests.append(HouseGuestItem(initials, pos, color))
-                self.scene.addItem(self.houseguests[-1])
+        for _ in range(num_hg):
+            room = random.choice(self.rooms)
+            pos = self.get_random_position_in_room(room)
+            initials = "".join(random.choices("ABCDEFGHIJKLMNOPQRSTUVWXYZ", k=2))
+            color = self.get_unique_color()
+            self.houseguests.append(HouseGuestItem(initials, pos, color))
+            self.scene.addItem(self.houseguests[-1])
 
     def move_houseguests(self):
         for hg in self.houseguests:
@@ -257,25 +225,9 @@ class BigBrotherHouse(QMainWindow):
                     if adjacent_positions:
                         new_pos = random.choice(adjacent_positions)
                         hg.setPos(new_pos)
-                    else:
-                        hg.setPos(current_pos)
                 else:
-                    valid_positions = []
-                    for room in self.rooms:
-                        valid_positions.extend(
-                            [self.get_random_position_in_room(room) for _ in range(10)]
-                        )
-                    if valid_positions:
-                        new_pos = random.choice(valid_positions)
-                        hg.setPos(new_pos)
-            else:
-                valid_positions = []
-                for room in self.rooms:
-                    valid_positions.extend(
-                        [self.get_random_position_in_room(room) for _ in range(10)]
-                    )
-                if valid_positions:
-                    new_pos = random.choice(valid_positions)
+                    room = random.choice(self.rooms)
+                    new_pos = self.get_random_position_in_room(room)
                     hg.setPos(new_pos)
 
     def get_random_position_in_room(self, room):

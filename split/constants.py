@@ -14,7 +14,7 @@ PROFESSIONS = [
     "Scientist",
     "Teacher",
 ]
-MAX_EVENTS = 1
+MAX_EVENTS = 4
 
 FINALE_PHRASES = {
     (2, 3): [
